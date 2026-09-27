@@ -227,7 +227,7 @@
         <div><span class="dot" style="background:#fbbf24"></span>反発係数</div>
         <div><span class="dot" style="background:#fb7185"></span>支持率落下</div>
       </div>
-      <p class="sub" style="margin-top:10px">全消しゴム同士を回転付きインパルス法で衝突計算。9点支持率が低くなると机から落下します。</p>
+      <p class="sub" style="margin-top:10px">全消しゴム同士を回転付きインパルス法で衝突計算。各消しゴムにはラウンドごとに見えないクリティカル位置が設定され、そこへ強く当たると通常より大きく弾かれます。9点支持率が低くなると机から落下します。</p>
       <div class="assistControls">
         <button class="toggleBtn active" id="physicsGuideBtn" type="button">物理ガイド ON</button>
         <button class="toggleBtn ai" id="aiAssistBtn" type="button">AIアシスト OFF</button>
@@ -260,6 +260,9 @@
   const physicsGuideBtn=$('physicsGuideBtn'), aiAssistBtn=$('aiAssistBtn'), assistPanel=$('assistPanel'), assistText=$('assistText'), assistModeText=$('assistModeText');
 
   const TAU=Math.PI*2;
+  const CRITICAL_POWER=1.85;
+  const CRITICAL_MIN_SPEED=24;
+  const CRITICAL_COOLDOWN=.28;
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const dot=(a,b)=>a.x*b.x+a.y*b.y;
   const len=v=>Math.hypot(v.x,v.y);
@@ -506,7 +509,7 @@
       x:0,y:0,angle:0,vx:0,vy:0,wv:0,width:b.w,height:b.h,mass,invMass:1/mass,inertia,invI:1/inertia,
       friction:s.friction*c.damp,restitution:s.restitution,grip:s.grip,shotPower:b.power*c.impulse,
       control:b.control*c.damp,spin:b.spin*c.spin,bodyColor:b.color,sleeveColor:s.color,playerColor:PLAYER_COLORS[index],
-      falling:false,fallT:0,scale:1,alpha:1,support:1,alive:true
+      falling:false,fallT:0,scale:1,alpha:1,support:1,alive:true,critical:null,criticalCooldown:0
     };
   }
 
@@ -576,9 +579,20 @@
     ];
   }
 
+  function randomCriticalPoint(e){
+    // 外周のどこか1点を均等に抽選。描画には使わないので位置はプレイヤーから見えない。
+    const w=e.width,h=e.height,perimeter=2*(w+h),u=Math.random()*perimeter;
+    let x=0,y=0;
+    if(u<w){x=-w/2+u;y=-h/2;}
+    else if(u<w+h){x=w/2;y=-h/2+(u-w);}
+    else if(u<2*w+h){x=w/2-(u-w-h);y=h/2;}
+    else{x=-w/2;y=h/2-(u-2*w-h);}
+    return {x,y,r:clamp(Math.min(w,h)*.34,11,19)};
+  }
+
   function placePlayers(){
     const slots=spawnSlots(players.length);
-    players.forEach((p,i)=>Object.assign(p,{x:slots[i].x,y:slots[i].y,angle:slots[i].a,vx:0,vy:0,wv:0,falling:false,fallT:0,scale:1,alpha:1,support:1,alive:true}));
+    players.forEach((p,i)=>Object.assign(p,{x:slots[i].x,y:slots[i].y,angle:slots[i].a,vx:0,vy:0,wv:0,falling:false,fallT:0,scale:1,alpha:1,support:1,alive:true,critical:randomCriticalPoint(p),criticalCooldown:0}));
   }
 
   function resetRound(){
@@ -674,6 +688,20 @@
     return{normal:best,depth:overlap,contact};
   }
 
+  function criticalAtContact(e,contact){
+    if(!e.critical||e.criticalCooldown>0)return false;
+    const local=rot({x:contact.x-e.x,y:contact.y-e.y},-e.angle),c=e.critical;
+    return Math.hypot(local.x-c.x,local.y-c.y)<=c.r;
+  }
+
+  function applyCriticalImpulse(e,dir,baseJ,arm){
+    const extraJ=baseJ*(CRITICAL_POWER-1),imp=mul(dir,extraJ);
+    e.vx+=imp.x*e.invMass;e.vy+=imp.y*e.invMass;
+    e.wv+=cross(arm,imp)*e.invI*e.spin;
+    e.criticalCooldown=CRITICAL_COOLDOWN;
+    setMessage(`CRITICAL! ${e.name} が大きく弾かれた！`);
+  }
+
   function resolveCollision(a,b,m){
     const n=m.normal,ra=sub(m.contact,{x:a.x,y:a.y}),rb=sub(m.contact,{x:b.x,y:b.y});
     const va=add({x:a.vx,y:a.vy},crossSV(a.wv,ra)),vb=add({x:b.vx,y:b.vy},crossSV(b.wv,rb));
@@ -683,6 +711,15 @@
       const j=-(1+e)*velN/(den||1),imp=mul(n,j);
       a.vx-=imp.x*a.invMass;a.vy-=imp.y*a.invMass;a.wv-=cross(ra,imp)*a.invI;
       b.vx+=imp.x*b.invMass;b.vy+=imp.y*b.invMass;b.wv+=cross(rb,imp)*b.invI;
+
+      // 接触点が相手側の隠しクリティカル位置なら、その消しゴムだけ追加で吹き飛ばす。
+      // 低速の押し合いや停止間際の微振動では発動させない。
+      if(-velN>=CRITICAL_MIN_SPEED){
+        const critA=criticalAtContact(a,m.contact),critB=criticalAtContact(b,m.contact);
+        if(critA)applyCriticalImpulse(a,mul(n,-1),j,ra);
+        if(critB)applyCriticalImpulse(b,n,j,rb);
+      }
+
       rv=sub(add({x:b.vx,y:b.vy},crossSV(b.wv,rb)),add({x:a.vx,y:a.vy},crossSV(a.wv,ra)));
       let t=sub(rv,mul(n,dot(rv,n))),tl=len(t);if(tl>1e-6)t=mul(t,1/tl);
       const denT=a.invMass+b.invMass+cross(ra,t)**2*a.invI+cross(rb,t)**2*b.invI;let jt=-dot(rv,t)/(denT||1);
@@ -700,6 +737,7 @@
   }
 
   function stepBody(e,dt){
+    e.criticalCooldown=Math.max(0,(e.criticalCooldown||0)-dt);
     if(e.falling){e.fallT+=dt;e.scale=Math.max(.06,1-e.fallT*1.08);e.alpha=Math.max(0,1-e.fallT*.88);e.angle+=e.wv*dt*1.8;e.x+=e.vx*dt*.4;e.y+=e.vy*dt*.4;return;}
     e.x+=e.vx*dt;e.y+=e.vy*dt;e.angle+=e.wv*dt;
     const speed=Math.hypot(e.vx,e.vy),gripFactor=.78+.22*clamp(e.grip,.55,1.4),drag=e.friction*gripFactor*(speed<80?1.32:.84),f=Math.exp(-drag*dt);
