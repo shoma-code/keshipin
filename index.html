@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>消しピン</title>
+<style>
+  :root{
+    --bg:#0d1013; --panel:#181d22; --panel2:#22282e; --ink:#f4f7f9; --muted:#a9b2bb;
+    --accent:#6ee7b7; --danger:#fb7185; --gold:#fbbf24; --blue:#60a5fa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:radial-gradient(circle at 20% 5%,#26313b 0,#101317 42%,#080a0c 100%);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif}
+  button,select,input{font:inherit}
+  button{cursor:pointer}
+
+  /* ---------- setup ---------- */
+  #setupScreen{min-height:100vh;padding:28px 18px 44px;display:block}
+  .setupShell{max-width:1180px;margin:auto}
+  .hero{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:18px}
+  .eyebrow{font-size:12px;letter-spacing:.18em;color:#9ca8b3;font-weight:800}
+  .hero h1{font-size:clamp(32px,6vw,64px);line-height:.92;margin:7px 0 10px;letter-spacing:-.045em}
+  .hero p{margin:0;color:var(--muted);max-width:700px;line-height:1.7;font-size:13px}
+  .localBadge{flex:0 0 auto;border:1px solid #ffffff24;background:#ffffff0d;border-radius:999px;padding:9px 13px;font-size:12px;font-weight:900;letter-spacing:.07em}
+  .setupPanel{background:linear-gradient(180deg,#1b2127,#14181c);border:1px solid #303841;border-radius:22px;padding:18px;box-shadow:0 30px 80px #0007}
+  .setupTop{display:block;margin-bottom:16px}
+  label{display:block;font-size:11px;color:#cbd4dc;margin:0 0 6px;font-weight:700;letter-spacing:.03em}
+  select,input{width:100%;border:1px solid #3a444e;background:#0f1418;color:#f2f6f8;border-radius:10px;padding:10px 11px;outline:none}
+  select:focus,input:focus{border-color:#74818e}
+  .setupHint{color:#a9b2bb;font-size:12px;line-height:1.55;padding-bottom:4px}
+  #playerConfigs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .playerConfig{--pc:#6ee7b7;background:#11161a;border:1px solid #2c343c;border-top:3px solid var(--pc);border-radius:15px;padding:14px;position:relative;overflow:hidden}
+  .playerConfig::after{content:"";position:absolute;width:120px;height:120px;border-radius:50%;right:-55px;top:-55px;background:var(--pc);opacity:.06;pointer-events:none}
+  .playerConfig.off{opacity:.55}
+  .playerConfig[data-kind="cpu"]{box-shadow:inset 0 0 0 1px #fbbf2428}
+  .typeSelect{font-weight:900}
+  .cpuOnly{display:none}
+  .playerConfig[data-kind="cpu"] .cpuOnly{display:block}
+  .slotTag{margin-left:auto;font-size:10px;font-weight:900;border:1px solid #ffffff20;border-radius:999px;padding:4px 8px;color:#dfe7ed;background:#ffffff0b}
+  .pcHead{display:flex;gap:10px;align-items:center;margin-bottom:11px}
+  .playerDot{width:11px;height:11px;border-radius:50%;background:var(--pc);box-shadow:0 0 18px var(--pc)}
+  .pcTitle{font-weight:900;font-size:13px;letter-spacing:.05em}
+  .pcGrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .pcGrid .full{grid-column:1/-1}
+  .randomBtn{border:1px solid #3a444e;background:#161c21;color:#eaf0f4;border-radius:10px;padding:10px;font-weight:800;width:100%}
+  .randomBtn:hover{background:#202830}
+  .partDetails{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:11px}
+  .partInfo{background:#0d1216;border:1px solid #2d353d;border-radius:10px;padding:9px;min-height:104px}
+  .partInfoHead{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:5px}
+  .partInfoType{font-size:9px;font-weight:900;letter-spacing:.11em;color:#8f9ba5}
+  .partInfoName{font-size:10px;font-weight:900;color:#eef4f7;text-align:right}
+  .partInfoDesc{font-size:10px;line-height:1.55;color:#b8c1c9}
+  .effectTags{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
+  .effectTag{font-size:9px;font-weight:900;border:1px solid #ffffff17;background:#ffffff09;border-radius:999px;padding:3px 6px;color:#dce4ea}
+  .effectTag.up{color:#86efc0;border-color:#6ee7b744;background:#6ee7b70d}
+  .effectTag.down{color:#fda4af;border-color:#fb718544;background:#fb71850d}
+  .effectTag.neutral{color:#bfdbfe;border-color:#60a5fa44;background:#60a5fa0d}
+  .partSummary{margin-top:10px;border-top:1px solid #ffffff12;padding-top:9px;color:#98a5af;font-size:10px;line-height:1.55}
+  .setupActions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+  .primaryBtn,.secondaryBtn{border-radius:12px;padding:12px 18px;font-weight:900;border:1px solid #3d4751}
+  .primaryBtn{background:linear-gradient(180deg,#39dfa8,#13a372);color:#04130d;border:none;min-width:220px}
+  .secondaryBtn{background:#151a1f;color:#eef3f6}
+  .primaryBtn:hover,.secondaryBtn:hover{transform:translateY(-1px)}
+
+  /* ---------- game ---------- */
+  #gameScreen{display:none}
+  #app{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;padding:14px;max-width:1500px;margin:auto}
+  .stageWrap{position:relative;min-height:720px;background:#0e1114;border:1px solid #30363d;border-radius:18px;overflow:hidden;box-shadow:0 25px 70px #0008}
+  canvas{width:100%;height:100%;display:block;touch-action:none}
+  .hud{position:absolute;left:18px;top:16px;right:18px;display:flex;gap:10px;align-items:center;justify-content:space-between;pointer-events:none}
+  .hudLeft{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .badge{background:#000a;border:1px solid #ffffff1b;border-radius:999px;padding:8px 12px;font-size:12px;backdrop-filter:blur(8px)}
+  .turn{font-weight:900;letter-spacing:.045em}
+  #scorePills{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;max-width:62%}
+  .scorePill{background:#000a;border:1px solid #ffffff18;border-radius:999px;padding:7px 10px;font-size:11px;font-weight:800;white-space:nowrap}
+  .msg{position:absolute;left:50%;top:62px;transform:translateX(-50%);background:#000c;border:1px solid #ffffff1d;padding:8px 14px;border-radius:10px;font-weight:800;pointer-events:none;white-space:nowrap;max-width:80%;overflow:hidden;text-overflow:ellipsis}
+  .help{position:absolute;left:18px;bottom:16px;background:#000a;border:1px solid #ffffff18;border-radius:12px;padding:10px 12px;font-size:11px;color:#d8dee4;line-height:1.55;max-width:510px;pointer-events:none}
+  .kbd{font-family:ui-monospace,monospace;border:1px solid #4b5563;border-bottom-width:2px;border-radius:6px;padding:1px 5px;color:#fff;background:#111827}
+  #powerBox{position:absolute;right:18px;bottom:18px;width:190px;background:#000b;border:1px solid #ffffff20;padding:10px;border-radius:12px;pointer-events:none;opacity:.28}
+  #powerBox.active{opacity:1}
+  #powerBar{height:10px;border-radius:999px;background:#252b31;overflow:hidden;margin-top:6px}
+  #powerFill{height:100%;width:0;background:linear-gradient(90deg,#6ee7b7,#fbbf24,#fb7185)}
+  #powerText{font-size:11px;color:#d4dbe1;display:flex;justify-content:space-between}
+  aside{display:flex;flex-direction:column;gap:12px}
+  .card{background:linear-gradient(180deg,#1c2227,#161a1e);border:1px solid #30363d;border-radius:16px;padding:15px;box-shadow:0 16px 35px #0005}
+  h2{font-size:13px;margin:0 0 11px;color:#d9e0e6;letter-spacing:.1em;text-transform:uppercase}
+  .gameTitle{font-size:21px;margin:0 0 5px}
+  .sub{margin:0;color:var(--muted);font-size:11px;line-height:1.55}
+  .currentName{font-size:18px;font-weight:900;margin-bottom:4px}
+  .partList{display:grid;gap:5px;margin:10px 0 12px;font-size:11px;color:#cbd4da}
+  .partList span{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #ffffff0e;padding-bottom:4px}
+  .partList b{color:#eef3f6;font-weight:800;text-align:right}
+  .stat{display:grid;grid-template-columns:60px 1fr 31px;gap:7px;align-items:center;font-size:10px;margin:7px 0}
+  .bar{height:7px;background:#0e1215;border-radius:999px;overflow:hidden;border:1px solid #2f363d}
+  .fill{height:100%;background:linear-gradient(90deg,#60a5fa,#6ee7b7);width:0%}
+  .n{font-variant-numeric:tabular-nums;text-align:right;color:#e5edf3}
+  .turnOrder{display:grid;gap:7px}
+  .turnRow{display:grid;grid-template-columns:12px 1fr auto;gap:8px;align-items:center;font-size:11px;border:1px solid #ffffff0f;border-radius:9px;padding:8px;background:#111519}
+  .turnRow.active{border-color:#ffffff35;background:#171e24}
+  .turnRow.out{opacity:.38;text-decoration:line-through}
+  .tdot{width:8px;height:8px;border-radius:50%}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+  .gameBtn{width:100%;border:1px solid #3a434c;background:#11161a;color:#eef3f7;border-radius:10px;padding:10px 11px;font-weight:800}
+  .gameBtn:hover{background:#1a2228;border-color:#56616c}
+  .legend{display:grid;grid-template-columns:1fr 1fr;gap:7px;font-size:10px;color:#aeb7c0}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+
+  @media(max-width:1000px){
+    #app{grid-template-columns:1fr}.stageWrap{min-height:62vh}aside{display:grid;grid-template-columns:1fr 1fr}.wide{grid-column:1/-1}
+  }
+  @media(max-width:760px){
+    #playerConfigs{grid-template-columns:1fr}.hero{align-items:flex-start;flex-direction:column}.pcGrid{grid-template-columns:1fr}.pcGrid .full{grid-column:auto}.partDetails{grid-template-columns:1fr}
+  }
+  @media(max-width:620px){
+    #setupScreen{padding:18px 8px 28px}.setupPanel{padding:11px;border-radius:15px}.setupActions{flex-direction:column}.primaryBtn{min-width:0;width:100%}
+    #app{padding:7px;gap:7px}.stageWrap{min-height:59vh;border-radius:12px}aside{display:block}.card{margin-bottom:8px}.help{font-size:10px;max-width:72%}.msg{top:94px;font-size:11px}#scorePills{max-width:58%}
+  }
+</style>
+</head>
+<body>
+
+<section id="setupScreen">
+  <div class="setupShell">
+    <div class="hero">
+      <div>
+        <div class="eyebrow">DESK PHYSICS / PLAYER & CPU BATTLE</div>
+        <h1>ERASER<br>CLASH</h1>
+        <p>4つの参加枠を「プレイヤー / CPU / 参加なし」から自由に設定。人間もCPUも「本体・スリーブ・コア」の3パーツをカスタムして、机の上で最後の1個になるまで弾き合う。</p>
+      </div>
+      <div class="localBadge">1 DEVICE · UP TO 4 SLOTS</div>
+    </div>
+
+    <div class="setupPanel">
+      <div class="setupTop">
+        <div class="setupHint">各枠で参加タイプを選択してください。プレイヤーは同じマウス／タッチを交代で操作し、CPUの番は自動でショットします。パーツを選ぶと、その下に特徴とステータス傾向が表示されます。CPUだけの観戦対戦も可能です。</div>
+      </div>
+      <div id="playerConfigs"></div>
+      <div class="setupActions">
+        <div id="setupStatus" class="setupHint" style="margin-right:auto;align-self:center">2枠以上を参加させてください。</div>
+        <button class="primaryBtn" id="startBtn">このメンバーで対戦開始</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="gameScreen">
+<div id="app">
+  <section class="stageWrap" id="stageWrap">
+    <canvas id="game"></canvas>
+    <div class="hud">
+      <div class="hudLeft"><span class="badge turn" id="turnBadge">PLAYER 1 TURN</span><span class="badge" id="roundBadge">ROUND 1</span></div>
+      <div id="scorePills"></div>
+    </div>
+    <div class="msg" id="msg">自分の消しゴムを後ろへドラッグしてショット！</div>
+    <div class="help">プレイヤー操作：光っている自分の消しゴムを<strong>飛ばしたい方向と逆へ</strong>ドラッグ → 離して発射。中心からずらすとスピン。CPUの番は自動操作。落ちた枠はそのラウンド脱落。<span class="kbd">R</span> でやり直し。</div>
+    <div id="powerBox"><div id="powerText"><span>SHOT POWER</span><span id="powerNum">0%</span></div><div id="powerBar"><div id="powerFill"></div></div></div>
+  </section>
+
+  <aside>
+    <div class="card wide">
+      <h1 class="gameTitle">消しピン</h1>
+      <p class="sub">PLAYER / CPU · 最大4枠 / 同じ端末で対戦</p>
+    </div>
+
+    <div class="card">
+      <h2>Current Eraser</h2>
+      <div class="currentName" id="currentName">PLAYER 1</div>
+      <div class="partList" id="currentParts"></div>
+      <div id="stats"></div>
+    </div>
+
+    <div class="card">
+      <h2>Turn Order</h2>
+      <div class="turnOrder" id="turnOrder"></div>
+    </div>
+
+    <div class="card">
+      <h2>Physics</h2>
+      <div class="legend">
+        <div><span class="dot" style="background:#6ee7b7"></span>速度依存摩擦</div>
+        <div><span class="dot" style="background:#60a5fa"></span>角運動量</div>
+        <div><span class="dot" style="background:#fbbf24"></span>反発係数</div>
+        <div><span class="dot" style="background:#fb7185"></span>支持率落下</div>
+      </div>
+      <p class="sub" style="margin-top:10px">全消しゴム同士を回転付きインパルス法で衝突計算。9点支持率が低くなると机から落下します。</p>
+    </div>
+
+    <div class="card">
+      <h2>Match</h2>
+      <button class="gameBtn" id="newRoundBtn">このラウンドをやり直す</button>
+      <div class="row"><button class="gameBtn" id="customBtn">カスタム画面へ</button><button class="gameBtn" id="newMatchBtn">スコアを0に戻す</button></div>
+      <p class="sub" style="margin-top:10px">最後まで机に残った1人が1ポイント。全員同時に落ちた場合は引き分けです。</p>
+    </div>
+  </aside>
+</div>
+</section>
+
+<script>
+(() => {
+  'use strict';
+
+  const $=id=>document.getElementById(id);
+  const canvas=$('game'), ctx=canvas.getContext('2d'), wrap=$('stageWrap');
+  const msg=$('msg'), turnBadge=$('turnBadge'), roundBadge=$('roundBadge'), scorePills=$('scorePills');
+  const powerBox=$('powerBox'), powerFill=$('powerFill'), powerNum=$('powerNum');
+  const setupScreen=$('setupScreen'), gameScreen=$('gameScreen'), playerConfigs=$('playerConfigs'), setupStatus=$('setupStatus');
+
+  const TAU=Math.PI*2;
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const dot=(a,b)=>a.x*b.x+a.y*b.y;
+  const len=v=>Math.hypot(v.x,v.y);
+  const norm=v=>{const l=len(v)||1;return{x:v.x/l,y:v.y/l}};
+  const sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y});
+  const add=(a,b)=>({x:a.x+b.x,y:a.y+b.y});
+  const mul=(v,s)=>({x:v.x*s,y:v.y*s});
+  const cross=(a,b)=>a.x*b.y-a.y*b.x;
+  const crossSV=(s,v)=>({x:-s*v.y,y:s*v.x});
+  const rot=(v,a)=>({x:v.x*Math.cos(a)-v.y*Math.sin(a),y:v.x*Math.sin(a)+v.y*Math.cos(a)});
+
+  const PLAYER_COLORS=['#6ee7b7','#60a5fa','#f472b6','#fbbf24'];
+  const DEFAULT_NAMES=['PLAYER 1','PLAYER 2','PLAYER 3','PLAYER 4'];
+
+  const parts={
+    body:[
+      {name:'コンパクト 40',w:76,h:40,m:0.95,power:1.08,control:1.16,spin:1.12,color:'#f5f3ea'},
+      {name:'ロング 70',w:108,h:36,m:1.05,power:1.00,control:1.08,spin:1.25,color:'#e6eef4'},
+      {name:'ヘビー 55',w:88,h:46,m:1.34,power:0.90,control:0.92,spin:0.82,color:'#e4e0d6'},
+      {name:'ワイド 60',w:96,h:54,m:1.18,power:0.96,control:1.00,spin:0.90,color:'#f3eadf'}
+    ],
+    sleeve:[
+      {name:'紙スリーブ',friction:1.55,restitution:0.42,grip:1.00,color:'#60a5fa'},
+      {name:'ラバースリーブ',friction:2.35,restitution:0.24,grip:1.28,color:'#6ee7b7'},
+      {name:'ポリマースリーブ',friction:1.05,restitution:0.63,grip:0.82,color:'#fbbf24'},
+      {name:'メタルテープ',friction:0.72,restitution:0.78,grip:0.66,color:'#c4b5fd'}
+    ],
+    core:[
+      {name:'バランスコア',impulse:1.00,spin:1.00,damp:1.00},
+      {name:'パワーコア',impulse:1.18,spin:0.82,damp:0.95},
+      {name:'スピンコア',impulse:0.93,spin:1.46,damp:1.06},
+      {name:'コントロールコア',impulse:0.90,spin:0.76,damp:1.18}
+    ]
+  };
+
+  const partGuide={
+    body:[
+      {desc:'小さく軽い万能型。初速と操作性が高く、細かい角度調整やスピンショットがしやすい。ただし重い相手との正面衝突では押し負けやすい。',tags:[['↑ POWER','up'],['↑ CONTROL','up'],['↑ SPIN','up'],['↓ MASS','down']]},
+      {desc:'細長いテクニック型。接触できる範囲が広く、中心を外して当てたときに回転を生みやすい。横向きになると机の端には注意。',tags:[['↑ SPIN','up'],['↑ REACH','up'],['○ CONTROL','neutral']]},
+      {desc:'重さで押すパワー型。衝突で速度を奪われにくく、相手を押し出しやすい。重いぶん加速と回転は控えめ。',tags:[['↑ MASS','up'],['↑ STABILITY','up'],['↓ SPIN','down'],['↓ SPEED','down']]},
+      {desc:'幅広で安定するディフェンス型。机に残る面積を確保しやすく、横からの衝突にも強め。大きいので端でははみ出しやすい。',tags:[['↑ STABILITY','up'],['↑ MASS','up'],['○ CONTROL','neutral'],['↓ SPIN','down']]}
+    ],
+    sleeve:[
+      {desc:'クセの少ない標準スリーブ。摩擦と反発のバランスがよく、初めてのカスタムでも扱いやすい。',tags:[['○ GRIP','neutral'],['○ BOUNCE','neutral'],['○ SLIDE','neutral']]},
+      {desc:'机をしっかりつかむ高摩擦タイプ。止まりやすく狙った場所に残しやすい反面、ぶつかった後の跳ね返りは弱い。',tags:[['↑ GRIP','up'],['↑ BRAKE','up'],['↓ BOUNCE','down']]},
+      {desc:'滑りと反発を両立した攻撃型。衝突後も動きが残りやすく連鎖的に相手を押せるが、自分も流れやすい。',tags:[['↑ BOUNCE','up'],['↑ SLIDE','up'],['↓ GRIP','down']]},
+      {desc:'最も滑って最も跳ねるピーキー型。強い弾き合いが得意だが、停止位置の予測が難しく自滅にも注意。',tags:[['↑↑ BOUNCE','up'],['↑↑ SLIDE','up'],['↓ GRIP','down'],['↓ CONTROL','down']]}
+    ],
+    core:[
+      {desc:'全性能を変えすぎない基準コア。どの本体・スリーブとも合わせやすく、安定したオールラウンド構成になる。',tags:[['○ ALL ROUND','neutral']]},
+      {desc:'ショットの初動を強化する攻撃コア。直線的な押し出しが強くなる代わりに、スピン性能は少し下がる。',tags:[['↑ POWER','up'],['↓ SPIN','down'],['↑ ATTACK','up']]},
+      {desc:'回転を大きく増幅するテクニカルコア。斜め当てや端をかすめるショット向きだが、直線の押し込みは少し弱い。',tags:[['↑↑ SPIN','up'],['↓ POWER','down'],['↑ TECH','up']]},
+      {desc:'速度と回転を落ち着かせる安定コア。暴れにくく位置を読みやすい反面、最大火力は低め。',tags:[['↑ CONTROL','up'],['↑ DAMPING','up'],['↓ POWER','down'],['↓ SPIN','down']]}
+    ]
+  };
+
+  let setupData=DEFAULT_NAMES.map((name,i)=>({name,kind:i<2?'human':'off',difficulty:'normal',bi:i%parts.body.length,si:i%parts.sleeve.length,ci:i%parts.core.length}));
+  let players=[],scores=[0,0,0,0],round=1,turnIndex=0,shotActive=false,settleTimer=0,roundEnded=false,roundEndTimer=0,cpuThinkTimer=0;
+  let dragging=false,dragStart=null,dragNow=null,grabOffset={x:0,y:0};
+  let W=1000,H=720,dpr=1,table={x:95,y:88,w:810,h:525};
+  let last=performance.now(),acc=0,gameStarted=false;
+
+  function optionHTML(arr,selected){return arr.map((p,i)=>`<option value="${i}" ${i===selected?'selected':''}>${p.name}</option>`).join('');}
+
+  function renderSetup(){
+    playerConfigs.innerHTML='';
+    for(let i=0;i<4;i++){
+      const d=setupData[i], card=document.createElement('div');
+      card.className='playerConfig'+(d.kind==='off'?' off':'');card.style.setProperty('--pc',PLAYER_COLORS[i]);card.dataset.index=i;card.dataset.kind=d.kind;
+      card.innerHTML=`
+        <div class="pcHead"><span class="playerDot"></span><div class="pcTitle">SLOT ${i+1}</div><span class="slotTag">${d.kind==='human'?'PLAYER':d.kind==='cpu'?'CPU':'OFF'}</span></div>
+        <div class="pcGrid">
+          <div class="full"><label>参加タイプ</label><select class="typeInput typeSelect"><option value="human" ${d.kind==='human'?'selected':''}>プレイヤー</option><option value="cpu" ${d.kind==='cpu'?'selected':''}>CPU</option><option value="off" ${d.kind==='off'?'selected':''}>参加なし</option></select></div>
+          <div class="full"><label>名前</label><input class="nameInput" maxlength="14" value="${escapeHTML(d.name)}"></div>
+          <div class="cpuOnly"><label>CPU難易度</label><select class="difficultyInput"><option value="easy" ${d.difficulty==='easy'?'selected':''}>EASY</option><option value="normal" ${d.difficulty==='normal'?'selected':''}>NORMAL</option><option value="hard" ${d.difficulty==='hard'?'selected':''}>HARD</option></select></div>
+          <div class="cpuOnly"><label>&nbsp;</label><div class="setupHint">難しいほど狙いと威力調整が正確</div></div>
+          <div><label>1. 本体</label><select class="bodyInput">${optionHTML(parts.body,d.bi)}</select></div>
+          <div><label>2. スリーブ</label><select class="sleeveInput">${optionHTML(parts.sleeve,d.si)}</select></div>
+          <div><label>3. コア</label><select class="coreInput">${optionHTML(parts.core,d.ci)}</select></div>
+          <div><label>&nbsp;</label><button class="randomBtn">パーツをランダム</button></div>
+        </div>
+        <div class="partDetails">
+          <div class="partInfo bodyInfo"></div>
+          <div class="partInfo sleeveInfo"></div>
+          <div class="partInfo coreInfo"></div>
+        </div>
+        <div class="partSummary"></div>`;
+      playerConfigs.appendChild(card);
+      bindConfigCard(card,i);
+      updateConfigSummary(card,i);
+    }
+    const active=setupData.filter(d=>d.kind!=='off').length;
+    setupStatus.textContent=active>=2?`${active}枠参加 · PLAYER ${setupData.filter(d=>d.kind==='human').length} / CPU ${setupData.filter(d=>d.kind==='cpu').length}`:'2枠以上を参加させてください。';
+  }
+
+  function escapeHTML(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+
+  function bindConfigCard(card,i){
+    const type=card.querySelector('.typeInput'), name=card.querySelector('.nameInput'), diff=card.querySelector('.difficultyInput'), b=card.querySelector('.bodyInput'), s=card.querySelector('.sleeveInput'), c=card.querySelector('.coreInput');
+    type.onchange=()=>{
+      const old=setupData[i].kind;setupData[i].kind=type.value;
+      if(type.value==='cpu' && (setupData[i].name===DEFAULT_NAMES[i]||!setupData[i].name))setupData[i].name=`CPU ${i+1}`;
+      if(type.value==='human' && (setupData[i].name===`CPU ${i+1}`||!setupData[i].name))setupData[i].name=DEFAULT_NAMES[i];
+      if(old!==type.value)renderSetup();
+    };
+    name.oninput=()=>{setupData[i].name=name.value.trimStart();};
+    diff.onchange=()=>{setupData[i].difficulty=diff.value;updateConfigSummary(card,i);};
+    [b,s,c].forEach(el=>el.onchange=()=>{
+      setupData[i].bi=+b.value;setupData[i].si=+s.value;setupData[i].ci=+c.value;updateConfigSummary(card,i);
+    });
+    card.querySelector('.randomBtn').onclick=()=>{
+      setupData[i].bi=Math.floor(Math.random()*parts.body.length);
+      setupData[i].si=Math.floor(Math.random()*parts.sleeve.length);
+      setupData[i].ci=Math.floor(Math.random()*parts.core.length);
+      b.value=setupData[i].bi;s.value=setupData[i].si;c.value=setupData[i].ci;updateConfigSummary(card,i);
+    };
+  }
+
+  function updateConfigSummary(card,i){
+    const cfg=setupData[i],e=buildEraser(i,cfg);
+    const role=cfg.kind==='cpu'?`CPU ${cfg.difficulty.toUpperCase()}`:cfg.kind==='human'?'PLAYER':'OFF';
+    const detail=(type,label,idx)=>{
+      const part=parts[type][idx],guide=partGuide[type][idx];
+      return `<div class="partInfoHead"><span class="partInfoType">${label}</span><span class="partInfoName">${escapeHTML(part.name)}</span></div><div class="partInfoDesc">${escapeHTML(guide.desc)}</div><div class="effectTags">${guide.tags.map(([t,k])=>`<span class="effectTag ${k}">${escapeHTML(t)}</span>`).join('')}</div>`;
+    };
+    card.querySelector('.bodyInfo').innerHTML=detail('body','BODY',cfg.bi);
+    card.querySelector('.sleeveInfo').innerHTML=detail('sleeve','SLEEVE',cfg.si);
+    card.querySelector('.coreInfo').innerHTML=detail('core','CORE',cfg.ci);
+    card.querySelector('.partSummary').textContent=`${role} · POWER ${e.shotPower.toFixed(2)} / MASS ${e.mass.toFixed(2)} / GRIP ${e.grip.toFixed(2)} / BOUNCE ${e.restitution.toFixed(2)} / SPIN ${e.spin.toFixed(2)} / CONTROL ${e.control.toFixed(2)}`;
+  }
+
+  function buildEraser(index,cfg){
+    const b=parts.body[cfg.bi],s=parts.sleeve[cfg.si],c=parts.core[cfg.ci],mass=b.m;
+    const inertia=mass*(b.w*b.w+b.h*b.h)/12;
+    return {
+      index,name:(cfg.name||DEFAULT_NAMES[index]).trim()||DEFAULT_NAMES[index],type:cfg.kind,difficulty:cfg.difficulty||'normal',bi:cfg.bi,si:cfg.si,ci:cfg.ci,
+      x:0,y:0,angle:0,vx:0,vy:0,wv:0,width:b.w,height:b.h,mass,invMass:1/mass,inertia,invI:1/inertia,
+      friction:s.friction*c.damp,restitution:s.restitution,grip:s.grip,shotPower:b.power*c.impulse,
+      control:b.control*c.damp,spin:b.spin*c.spin,bodyColor:b.color,sleeveColor:s.color,playerColor:PLAYER_COLORS[index],
+      falling:false,fallT:0,scale:1,alpha:1,support:1,alive:true
+    };
+  }
+
+  function startMatch(){
+    syncSetupNames();
+    const active=setupData.map((d,i)=>({d,i})).filter(x=>x.d.kind!=='off');
+    if(active.length<2){setupStatus.textContent='対戦にはプレイヤーまたはCPUを2枠以上参加させてください。';return;}
+    players=active.map(x=>buildEraser(x.i,x.d));
+    scores=[0,0,0,0];round=1;turnIndex=0;gameStarted=true;cpuThinkTimer=0;
+    setupScreen.style.display='none';gameScreen.style.display='block';
+    resize();resetRound();updateUI();
+  }
+
+  function syncSetupNames(){
+    [...playerConfigs.querySelectorAll('.playerConfig')].forEach((card,i)=>{
+      const n=card.querySelector('.nameInput').value.trim();setupData[i].name=n||DEFAULT_NAMES[i];
+    });
+  }
+
+  function resize(){
+    if(gameScreen.style.display==='none')return;
+    const r=wrap.getBoundingClientRect();dpr=Math.min(devicePixelRatio||1,2);
+    W=Math.max(720,r.width);H=Math.max(600,r.height);
+    canvas.width=Math.floor(W*dpr);canvas.height=Math.floor(H*dpr);canvas.style.width=W+'px';canvas.style.height=H+'px';ctx.setTransform(dpr,0,0,dpr,0,0);
+    const margin=Math.min(W,H)*0.092;table={x:margin,y:margin*.86,w:W-2*margin,h:H-margin*1.82};
+    if(players.length&&!shotActive&&!roundEnded)placePlayers();
+  }
+  addEventListener('resize',resize);
+
+  function spawnSlots(n){
+    const cx=table.x+table.w/2,cy=table.y+table.h/2;
+    if(n===2)return[
+      {x:table.x+table.w*.25,y:cy,a:0},
+      {x:table.x+table.w*.75,y:cy,a:Math.PI}
+    ];
+    if(n===3)return[
+      {x:cx,y:table.y+table.h*.22,a:Math.PI/2},
+      {x:table.x+table.w*.28,y:table.y+table.h*.72,a:-.55},
+      {x:table.x+table.w*.72,y:table.y+table.h*.72,a:Math.PI+.55}
+    ];
+    return[
+      {x:table.x+table.w*.24,y:table.y+table.h*.27,a:.35},
+      {x:table.x+table.w*.76,y:table.y+table.h*.27,a:Math.PI-.35},
+      {x:table.x+table.w*.76,y:table.y+table.h*.73,a:Math.PI+.35},
+      {x:table.x+table.w*.24,y:table.y+table.h*.73,a:-.35}
+    ];
+  }
+
+  function placePlayers(){
+    const slots=spawnSlots(players.length);
+    players.forEach((p,i)=>Object.assign(p,{x:slots[i].x,y:slots[i].y,angle:slots[i].a,vx:0,vy:0,wv:0,falling:false,fallT:0,scale:1,alpha:1,support:1,alive:true}));
+  }
+
+  function resetRound(){
+    placePlayers();turnIndex=0;shotActive=false;settleTimer=0;roundEnded=false;roundEndTimer=0;dragging=false;cpuThinkTimer=0;
+    const p=players[0];setMessage(p.type==='cpu'?`${p.name} (CPU) が考え中…`:`${p.name} の番。後ろへドラッグしてショット！`);updateUI();
+  }
+
+  function newMatch(){scores=[0,0,0,0];round=1;resetRound();}
+  function setMessage(t){msg.textContent=t;}
+  function currentPlayer(){return players[turnIndex]||players[0];}
+
+  function updateUI(){
+    if(!players.length)return;
+    const p=currentPlayer(), role=p.type==='cpu'?`CPU ${p.difficulty.toUpperCase()}`:'PLAYER';turnBadge.textContent=`${p.name} · ${role} TURN`;turnBadge.style.color=p.playerColor;roundBadge.textContent=`ROUND ${round}`;
+    scorePills.innerHTML=players.map(x=>`<span class="scorePill" style="border-color:${x.playerColor}55;color:${x.playerColor}">${escapeHTML(x.name)} · ${scores[x.index]}</span>`).join('');
+    $('currentName').textContent=p.name;$('currentName').style.color=p.playerColor;
+    $('currentParts').innerHTML=`<span>タイプ <b>${p.type==='cpu'?`CPU / ${p.difficulty.toUpperCase()}`:'PLAYER'}</b></span><span>本体 <b>${parts.body[p.bi].name}</b></span><span>スリーブ <b>${parts.sleeve[p.si].name}</b></span><span>コア <b>${parts.core[p.ci].name}</b></span>`;
+    updateStats(p);updateTurnOrder();
+  }
+
+  function updateTurnOrder(){
+    $('turnOrder').innerHTML=players.map((p,i)=>`<div class="turnRow ${i===turnIndex&&!roundEnded?'active':''} ${!p.alive?'out':''}"><span class="tdot" style="background:${p.playerColor}"></span><span>${escapeHTML(p.name)} <small style="color:#89959f">${p.type==='cpu'?'CPU':'P'}</small></span><b>${p.alive?'IN':'OUT'}</b></div>`).join('');
+  }
+
+  function scoreStat(v,min,max){return clamp((v-min)/(max-min)*100,0,100);}
+  function updateStats(p){
+    const stats=[
+      ['パワー',p.shotPower,scoreStat(p.shotPower,.75,1.45)],['重さ',p.mass,scoreStat(p.mass,.8,1.45)],['グリップ',p.grip,scoreStat(p.grip,.6,1.35)],
+      ['反発',p.restitution,scoreStat(p.restitution,.2,.82)],['スピン',p.spin,scoreStat(p.spin,.6,1.65)],['制御',p.control,scoreStat(p.control,.75,1.4)]
+    ];
+    $('stats').innerHTML=stats.map(([n,v,q])=>`<div class="stat"><span>${n}</span><div class="bar"><div class="fill" style="width:${q.toFixed(0)}%"></div></div><span class="n">${v.toFixed(2)}</span></div>`).join('');
+  }
+
+  function corners(e){
+    const hw=e.width/2*e.scale,hh=e.height/2*e.scale;
+    return [rot({x:-hw,y:-hh},e.angle),rot({x:hw,y:-hh},e.angle),rot({x:hw,y:hh},e.angle),rot({x:-hw,y:hh},e.angle)].map(p=>({x:p.x+e.x,y:p.y+e.y}));
+  }
+  function axesFromCorners(c){return[norm(sub(c[1],c[0])),norm(sub(c[3],c[0]))];}
+  function project(c,axis){let mn=Infinity,mx=-Infinity;for(const p of c){const d=dot(p,axis);mn=Math.min(mn,d);mx=Math.max(mx,d);}return{mn,mx};}
+  function pointInOBB(p,e){const q=rot({x:p.x-e.x,y:p.y-e.y},-e.angle);return Math.abs(q.x)<=e.width*e.scale/2+.5&&Math.abs(q.y)<=e.height*e.scale/2+.5;}
+  function sat(a,b){
+    if(a.falling||b.falling)return null;
+    const ca=corners(a),cb=corners(b),axes=[...axesFromCorners(ca),...axesFromCorners(cb)];let overlap=Infinity,best=null;
+    for(const ax0 of axes){const ax=norm(ax0),pa=project(ca,ax),pb=project(cb,ax),o=Math.min(pa.mx,pb.mx)-Math.max(pa.mn,pb.mn);if(o<=0)return null;if(o<overlap){overlap=o;best=ax;}}
+    if(dot(sub({x:b.x,y:b.y},{x:a.x,y:a.y}),best)<0)best=mul(best,-1);
+    const pts=[];for(const p of ca)if(pointInOBB(p,b))pts.push(p);for(const p of cb)if(pointInOBB(p,a))pts.push(p);
+    let contact=pts.length?mul(pts.reduce((s,p)=>add(s,p),{x:0,y:0}),1/pts.length):{x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+    return{normal:best,depth:overlap,contact};
+  }
+
+  function resolveCollision(a,b,m){
+    const n=m.normal,ra=sub(m.contact,{x:a.x,y:a.y}),rb=sub(m.contact,{x:b.x,y:b.y});
+    const va=add({x:a.vx,y:a.vy},crossSV(a.wv,ra)),vb=add({x:b.vx,y:b.vy},crossSV(b.wv,rb));
+    let rv=sub(vb,va),velN=dot(rv,n);
+    if(velN<0){
+      const e=Math.min(a.restitution,b.restitution),raCn=cross(ra,n),rbCn=cross(rb,n),den=a.invMass+b.invMass+raCn*raCn*a.invI+rbCn*rbCn*b.invI;
+      const j=-(1+e)*velN/(den||1),imp=mul(n,j);
+      a.vx-=imp.x*a.invMass;a.vy-=imp.y*a.invMass;a.wv-=cross(ra,imp)*a.invI;
+      b.vx+=imp.x*b.invMass;b.vy+=imp.y*b.invMass;b.wv+=cross(rb,imp)*b.invI;
+      rv=sub(add({x:b.vx,y:b.vy},crossSV(b.wv,rb)),add({x:a.vx,y:a.vy},crossSV(a.wv,ra)));
+      let t=sub(rv,mul(n,dot(rv,n))),tl=len(t);if(tl>1e-6)t=mul(t,1/tl);
+      const denT=a.invMass+b.invMass+cross(ra,t)**2*a.invI+cross(rb,t)**2*b.invI;let jt=-dot(rv,t)/(denT||1);
+      const mu=Math.sqrt((a.friction*.12)*(b.friction*.12));jt=clamp(jt,-j*mu,j*mu);const f=mul(t,jt);
+      a.vx-=f.x*a.invMass;a.vy-=f.y*a.invMass;a.wv-=cross(ra,f)*a.invI;
+      b.vx+=f.x*b.invMass;b.vy+=f.y*b.invMass;b.wv+=cross(rb,f)*b.invI;
+    }
+    const corr=Math.max(m.depth-.35,0)/(a.invMass+b.invMass)*.62;
+    a.x-=n.x*corr*a.invMass;a.y-=n.y*corr*a.invMass;b.x+=n.x*corr*b.invMass;b.y+=n.y*corr*b.invMass;
+  }
+
+  function supportRatio(e){
+    const hw=e.width/2,hh=e.height/2,samples=[{x:0,y:0},{x:-hw,y:-hh},{x:hw,y:-hh},{x:hw,y:hh},{x:-hw,y:hh},{x:0,y:-hh},{x:hw,y:0},{x:0,y:hh},{x:-hw,y:0}];
+    let score=0;for(const s of samples){const p=rot(s,e.angle),x=e.x+p.x,y=e.y+p.y;if(x>=table.x&&x<=table.x+table.w&&y>=table.y&&y<=table.y+table.h)score++;}return score/samples.length;
+  }
+
+  function stepBody(e,dt){
+    if(e.falling){e.fallT+=dt;e.scale=Math.max(.06,1-e.fallT*1.08);e.alpha=Math.max(0,1-e.fallT*.88);e.angle+=e.wv*dt*1.8;e.x+=e.vx*dt*.4;e.y+=e.vy*dt*.4;return;}
+    e.x+=e.vx*dt;e.y+=e.vy*dt;e.angle+=e.wv*dt;
+    const speed=Math.hypot(e.vx,e.vy),drag=e.friction*(speed<80?1.32:.84),f=Math.exp(-drag*dt);e.vx*=f;e.vy*=f;e.wv*=Math.exp(-(e.friction*.72+.65)*dt);
+    if(speed<2.4){e.vx*=.7;e.vy*=.7;}if(Math.abs(e.wv)<.025)e.wv*=.6;
+    e.support=supportRatio(e);const moving=Math.hypot(e.vx,e.vy)>14||Math.abs(e.wv)>.5,threshold=moving?.34:.24;
+    if(e.support<threshold){e.falling=true;e.alive=false;e.fallT=0;e.vx*=.78;e.vy*=.78;e.wv*=1.2;updateTurnOrder();}
+  }
+
+  function physicsStep(dt){
+    players.forEach(p=>stepBody(p,dt));
+    for(let i=0;i<players.length;i++)for(let j=i+1;j<players.length;j++){const m=sat(players[i],players[j]);if(m)resolveCollision(players[i],players[j],m);}
+    checkRoundState(dt);
+    handleCpuTurn(dt);
+  }
+
+  function allSettled(){return players.every(e=>e.falling||(Math.hypot(e.vx,e.vy)<5&&Math.abs(e.wv)<.06));}
+  function living(){return players.filter(p=>p.alive);}
+
+  function checkRoundState(dt){
+    if(roundEnded){roundEndTimer+=dt;if(roundEndTimer>2.0){round++;resetRound();}return;}
+
+    const alive=living();
+    if(alive.length<=1 && players.some(p=>p.falling)){
+      roundEnded=true;shotActive=false;roundEndTimer=0;
+      if(alive.length===1){const winner=alive[0];scores[winner.index]++;setMessage(`ROUND WIN! ${winner.name} +1 POINT`);}else setMessage('DRAW! 全員フォール');
+      updateUI();return;
+    }
+
+    if(shotActive){
+      if(allSettled())settleTimer+=dt;else settleTimer=0;
+      if(settleTimer>.55){shotActive=false;settleTimer=0;advanceTurn();}
+    }
+  }
+
+  function advanceTurn(){
+    if(roundEnded)return;
+    const start=turnIndex;do{turnIndex=(turnIndex+1)%players.length;if(players[turnIndex].alive)break;}while(turnIndex!==start);
+    cpuThinkTimer=0;
+    const p=currentPlayer();setMessage(p.type==='cpu'?`${p.name} (CPU) が考え中…`:`${p.name} の番。ドラッグしてショット！`);updateUI();
+  }
+
+  function edgeRoom(e){
+    const c=corners(e);let room=Infinity;
+    for(const q of c)room=Math.min(room,q.x-table.x,table.x+table.w-q.x,q.y-table.y,table.y+table.h-q.y);
+    return room;
+  }
+
+  function handleCpuTurn(dt){
+    if(roundEnded||shotActive||dragging||!players.length)return;
+    const p=currentPlayer();if(!p.alive||p.type!=='cpu'){cpuThinkTimer=0;return;}
+    cpuThinkTimer+=dt;
+    const delay=p.difficulty==='easy'?1.15:p.difficulty==='hard'?.48:.72;
+    if(cpuThinkTimer<delay)return;
+    cpuThinkTimer=0;cpuShoot(p);
+  }
+
+  function cpuShoot(p){
+    const opponents=players.filter(x=>x.alive&&x!==p);if(!opponents.length)return;
+    let target;
+    if(p.difficulty==='easy')target=opponents[Math.floor(Math.random()*opponents.length)];
+    else if(p.difficulty==='hard')target=[...opponents].sort((a,b)=>edgeRoom(a)-edgeRoom(b))[0];
+    else target=[...opponents].sort((a,b)=>Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y))[0];
+
+    const dx=target.x-p.x,dy=target.y-p.y,distance=Math.hypot(dx,dy);
+    let angle=Math.atan2(dy,dx);
+    const spread=p.difficulty==='easy'?.30:p.difficulty==='hard'?.035:.12;
+    angle+=(Math.random()*2-1)*spread;
+    const dir={x:Math.cos(angle),y:Math.sin(angle)};
+    let base=clamp(distance*1.18+95,330,710);
+    if(p.difficulty==='easy')base*=.64+Math.random()*.28;
+    else if(p.difficulty==='normal')base*=.90+Math.random()*.14;
+    else base*=.98+Math.random()*.08;
+    const mag=base*p.shotPower;
+    const perp={x:-dir.y,y:dir.x};
+    const spinBias=p.difficulty==='hard'?(Math.random()*2-1)*p.height*.16:p.difficulty==='normal'?(Math.random()*2-1)*p.height*.10:0;
+    const hit={x:p.x+perp.x*spinBias,y:p.y+perp.y*spinBias};
+    shoot(p,mul(dir,mag),hit);shotActive=true;settleTimer=0;setMessage(`${p.name} (CPU) SHOT!`);updateUI();
+  }
+
+  function shoot(e,impulse,point){
+    if(e.falling)return;e.vx+=impulse.x*e.invMass;e.vy+=impulse.y*e.invMass;const r=sub(point,{x:e.x,y:e.y});e.wv+=cross(r,impulse)*e.invI*e.spin;
+  }
+
+  function canvasPos(ev){const r=canvas.getBoundingClientRect();return{x:(ev.clientX-r.left)*(W/r.width),y:(ev.clientY-r.top)*(H/r.height)};}
+  canvas.addEventListener('pointerdown',ev=>{
+    const p=currentPlayer();if(!gameStarted||roundEnded||shotActive||!p.alive||p.type==='cpu')return;const q=canvasPos(ev);if(!pointInOBB(q,p))return;
+    dragging=true;dragStart=q;dragNow=q;grabOffset=sub(q,{x:p.x,y:p.y});canvas.setPointerCapture(ev.pointerId);powerBox.classList.add('active');
+  });
+  canvas.addEventListener('pointermove',ev=>{if(!dragging)return;dragNow=canvasPos(ev);updatePowerUI();});
+  canvas.addEventListener('pointerup',ev=>{
+    if(!dragging)return;dragging=false;powerBox.classList.remove('active');dragNow=canvasPos(ev);
+    const p=currentPlayer(),pull=sub(dragStart,dragNow),d=Math.min(len(pull),175);
+    if(d>10&&p.alive){const dir=norm(pull),mag=(d/175)*720*p.shotPower,hit=add({x:p.x,y:p.y},grabOffset);shoot(p,mul(dir,mag),hit);shotActive=true;settleTimer=0;setMessage(`${p.name} SHOT!`);}
+    updatePowerUI();
+  });
+  canvas.addEventListener('pointercancel',()=>{dragging=false;powerBox.classList.remove('active');updatePowerUI();});
+  function updatePowerUI(){const d=dragging?Math.min(len(sub(dragStart,dragNow)),175):0,q=Math.round(d/175*100);powerFill.style.width=q+'%';powerNum.textContent=q+'%';}
+  addEventListener('keydown',e=>{if(gameStarted&&e.key.toLowerCase()==='r')resetRound();});
+
+  function roundedRect(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);}
+  function drawTable(){
+    ctx.fillStyle='#121519';ctx.fillRect(0,0,W,H);
+    ctx.save();ctx.shadowColor='#000b';ctx.shadowBlur=38;ctx.shadowOffsetY=18;roundedRect(table.x-8,table.y-8,table.w+16,table.h+16,22);ctx.fillStyle='#0b0d0f';ctx.fill();ctx.restore();
+    const g=ctx.createLinearGradient(table.x,table.y,table.x+table.w,table.y+table.h);g.addColorStop(0,'#936a49');g.addColorStop(.45,'#765137');g.addColorStop(1,'#5d3e2b');roundedRect(table.x,table.y,table.w,table.h,16);ctx.fillStyle=g;ctx.fill();
+    ctx.save();roundedRect(table.x,table.y,table.w,table.h,16);ctx.clip();ctx.globalAlpha=.12;ctx.strokeStyle='#21140c';ctx.lineWidth=1;
+    for(let i=-H;i<W+H;i+=28){ctx.beginPath();ctx.moveTo(table.x+i,table.y);ctx.lineTo(table.x+i+H,table.y+table.h);ctx.stroke();}
+    for(let i=0;i<18;i++){ctx.globalAlpha=.05;ctx.strokeStyle='#fff';ctx.beginPath();const yy=table.y+25+i*31+Math.sin(i)*4;ctx.moveTo(table.x+12,yy);ctx.bezierCurveTo(table.x+table.w*.32,yy+4,table.x+table.w*.69,yy-5,table.x+table.w-12,yy+1);ctx.stroke();}ctx.restore();
+    ctx.lineWidth=3;ctx.strokeStyle='#c89a6d66';roundedRect(table.x,table.y,table.w,table.h,16);ctx.stroke();ctx.fillStyle='#ffffff14';ctx.font='700 13px system-ui';ctx.fillText('DESK ARENA',table.x+18,table.y+28);
+  }
+
+  function drawEraser(e){
+    if(e.alpha<=0)return;ctx.save();ctx.globalAlpha=e.alpha;ctx.translate(e.x,e.y);ctx.rotate(e.angle);ctx.scale(e.scale,e.scale);const w=e.width,h=e.height;
+    ctx.shadowColor='#0009';ctx.shadowBlur=16;ctx.shadowOffsetY=7;roundedRect(-w/2,-h/2,w,h,8);ctx.fillStyle=e.bodyColor;ctx.fill();ctx.shadowColor='transparent';
+    ctx.fillStyle=e.sleeveColor+'dd';roundedRect(-w*.17,-h/2-1,w*.52,h+2,3);ctx.fill();ctx.globalAlpha*=.16;ctx.fillStyle='#000';roundedRect(-w/2+5,-h/2+5,w-10,h-10,5);ctx.fill();ctx.globalAlpha=e.alpha;
+    ctx.fillStyle=e.bodyColor;roundedRect(-w/2+6,-h/2+6,w-12,h-12,5);ctx.fill();ctx.fillStyle=e.sleeveColor+'dd';ctx.fillRect(-w*.15,-h/2+4,w*.5,h-8);
+    ctx.fillStyle='#15202b';ctx.globalAlpha=e.alpha*.82;ctx.font=`900 ${Math.max(9,h*.22)}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(e.index+1),0,0);ctx.globalAlpha=e.alpha;
+    const isCurrent=currentPlayer()===e;ctx.strokeStyle=e.playerColor;ctx.lineWidth=(isCurrent&&!shotActive&&!roundEnded&&e.alive)?4:2;roundedRect(-w/2,-h/2,w,h,8);ctx.stroke();ctx.restore();
+    if(!e.falling){ctx.save();ctx.globalAlpha=isCurrent?.95:.5;ctx.fillStyle=e.playerColor;ctx.beginPath();ctx.arc(e.x,e.y,isCurrent?4:3,0,TAU);ctx.fill();ctx.restore();}
+  }
+
+  function drawAim(){
+    if(!dragging)return;const p=currentPlayer(),pull=sub(dragStart,dragNow),d=Math.min(len(pull),175),dir=norm(pull),start={x:p.x,y:p.y},end=add(start,mul(dir,80+d*1.1));
+    ctx.save();ctx.setLineDash([10,8]);ctx.lineWidth=3;ctx.strokeStyle=p.playerColor;ctx.beginPath();ctx.moveTo(start.x,start.y);ctx.lineTo(end.x,end.y);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=p.playerColor;ctx.beginPath();const ang=Math.atan2(dir.y,dir.x);ctx.moveTo(end.x,end.y);ctx.lineTo(end.x-14*Math.cos(ang-.45),end.y-14*Math.sin(ang-.45));ctx.lineTo(end.x-14*Math.cos(ang+.45),end.y-14*Math.sin(ang+.45));ctx.closePath();ctx.fill();
+    ctx.strokeStyle='#fb718588';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(dragStart.x,dragStart.y);ctx.lineTo(dragNow.x,dragNow.y);ctx.stroke();ctx.restore();
+  }
+
+  function drawSupport(e){if(e.falling||e.support>.55)return;ctx.save();ctx.globalAlpha=(.58-e.support)*1.6;ctx.strokeStyle='#fb7185';ctx.lineWidth=3;ctx.beginPath();ctx.arc(e.x,e.y,Math.max(e.width,e.height)*.72,0,TAU);ctx.stroke();ctx.restore();}
+  function render(){ctx.clearRect(0,0,W,H);drawTable();players.forEach(drawEraser);players.forEach(drawSupport);drawAim();}
+
+  function loop(now){
+    const frame=Math.min((now-last)/1000,.033);last=now;if(gameStarted){acc+=frame;const dt=1/120;let guard=0;while(acc>=dt&&guard++<6){physicsStep(dt);acc-=dt;}render();}requestAnimationFrame(loop);
+  }
+
+  $('startBtn').onclick=startMatch;
+  $('newRoundBtn').onclick=resetRound;
+  $('newMatchBtn').onclick=newMatch;
+  $('customBtn').onclick=()=>{
+    if(!players.length)return;
+    players.forEach(p=>{setupData[p.index]={...setupData[p.index],name:p.name,kind:p.type,difficulty:p.difficulty,bi:p.bi,si:p.si,ci:p.ci};});
+    renderSetup();gameStarted=false;gameScreen.style.display='none';setupScreen.style.display='block';window.scrollTo({top:0,behavior:'smooth'});
+  };
+
+  renderSetup();requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
