@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>消しピン</title>
 <style>
   :root{
@@ -10,9 +10,10 @@
     --accent:#6ee7b7; --danger:#fb7185; --gold:#fbbf24; --blue:#60a5fa;
   }
   *{box-sizing:border-box}
-  body{margin:0;min-height:100vh;background:radial-gradient(circle at 20% 5%,#26313b 0,#101317 42%,#080a0c 100%);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif}
+  html{background:#080a0c;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+  body{margin:0;min-height:100vh;min-height:100dvh;overflow-x:hidden;background:radial-gradient(circle at 20% 5%,#26313b 0,#101317 42%,#080a0c 100%);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif}
   button,select,input{font:inherit}
-  button{cursor:pointer}
+  button{cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 
   /* ---------- setup ---------- */
   #setupScreen{min-height:100vh;padding:28px 18px 44px;display:block}
@@ -82,8 +83,8 @@
   /* ---------- game ---------- */
   #gameScreen{display:none}
   #app{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;padding:14px;max-width:1500px;margin:auto}
-  .stageWrap{position:relative;min-height:720px;background:#0e1114;border:1px solid #30363d;border-radius:18px;overflow:hidden;box-shadow:0 25px 70px #0008}
-  canvas{width:100%;height:100%;display:block;touch-action:none}
+  .stageWrap{position:relative;min-height:720px;background:#0e1114;border:1px solid #30363d;border-radius:18px;overflow:hidden;box-shadow:0 25px 70px #0008;overscroll-behavior:contain}
+  canvas{width:100%;height:100%;display:block;touch-action:none;user-select:none;-webkit-user-select:none}
   .hud{position:absolute;left:18px;top:16px;right:18px;display:flex;gap:10px;align-items:center;justify-content:space-between;pointer-events:none}
   .hudLeft{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .badge{background:#000a;border:1px solid #ffffff1b;border-radius:999px;padding:8px 12px;font-size:12px;backdrop-filter:blur(8px)}
@@ -140,8 +141,24 @@
     #playerConfigs{grid-template-columns:1fr}.hero{align-items:flex-start;flex-direction:column}.pcGrid{grid-template-columns:1fr}.pcGrid .full{grid-column:auto}.partDetails{grid-template-columns:1fr}
   }
   @media(max-width:620px){
-    #setupScreen{padding:18px 8px 28px}.setupPanel{padding:11px;border-radius:15px}.setupActions{flex-direction:column}.primaryBtn{min-width:0;width:100%}
-    #app{padding:7px;gap:7px}.stageWrap{min-height:59vh;border-radius:12px}aside{display:block}.card{margin-bottom:8px}.help{font-size:10px;max-width:72%}.msg{top:94px;font-size:11px}#scorePills{max-width:58%}
+    #setupScreen{padding:calc(14px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left))}
+    .setupShell{width:100%}.hero{gap:10px;margin-bottom:12px}.hero h1{font-size:clamp(38px,14vw,52px);line-height:.9}.hero p{font-size:12px;line-height:1.55}.localBadge{font-size:10px;padding:7px 10px}
+    .setupPanel{padding:11px;border-radius:15px}.setupActions{flex-direction:column}.primaryBtn{min-width:0;width:100%}
+    select,input{font-size:16px;min-height:44px}button{min-height:44px}.randomBtn,.primaryBtn,.secondaryBtn,.gameBtn,.toggleBtn{padding-top:10px;padding-bottom:10px}
+    .playerConfig{padding:11px}.playerConfig.off .pcGrid>:not(:first-child),.playerConfig.off .partDetails,.playerConfig.off .partSummary,.playerConfig.off .compatPanel{display:none}.partInfo{min-height:0}.partDetails{gap:6px}.compatPanel{overflow:hidden}.compatChips{gap:3px}.compatChip{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    #app{padding:calc(6px + env(safe-area-inset-top)) calc(6px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(6px + env(safe-area-inset-left));gap:8px}
+    .stageWrap{height:clamp(430px,64svh,590px);min-height:0;border-radius:12px}
+    aside{display:block}.card{margin-bottom:8px;padding:12px}.row{grid-template-columns:1fr}
+    .hud{left:8px;right:8px;top:8px;display:grid;grid-template-columns:1fr;gap:5px;align-items:start}.hudLeft{gap:4px}.badge{font-size:10px;padding:6px 8px}
+    #scorePills{max-width:100%;justify-content:flex-start;gap:4px}.scorePill{font-size:9px;padding:5px 7px;max-width:calc(50% - 2px);overflow:hidden;text-overflow:ellipsis}
+    .msg{top:96px;font-size:10px;max-width:calc(100% - 16px);padding:7px 10px}
+    .help{display:none}
+    #powerBox{right:8px;bottom:8px;width:150px;padding:8px}#powerText{font-size:10px}
+    .assistControls{gap:6px}.assistPanel{font-size:10px}
+  }
+  @media(max-width:390px){
+    .pcHead{gap:7px}.slotTag{font-size:9px}.pcGrid{gap:7px}.partInfoDesc{font-size:9px}.effectTag{font-size:8px}.compatRow{grid-template-columns:36px 1fr}
+    .stageWrap{height:clamp(420px,62svh,540px)}.gameTitle{font-size:19px}.sub{font-size:10px}
   }
 </style>
 </head>
@@ -500,6 +517,7 @@
     players=active.map(x=>buildEraser(x.i,x.d));
     scores=[0,0,0,0];round=1;turnIndex=0;gameStarted=true;cpuThinkTimer=0;
     setupScreen.style.display='none';gameScreen.style.display='block';
+    window.scrollTo({top:0,left:0,behavior:'auto'});
     resize();resetRound();updateUI();
   }
 
@@ -511,13 +529,33 @@
 
   function resize(){
     if(gameScreen.style.display==='none')return;
-    const r=wrap.getBoundingClientRect();dpr=Math.min(devicePixelRatio||1,2);
-    W=Math.max(720,r.width);H=Math.max(600,r.height);
-    canvas.width=Math.floor(W*dpr);canvas.height=Math.floor(H*dpr);canvas.style.width=W+'px';canvas.style.height=H+'px';ctx.setTransform(dpr,0,0,dpr,0,0);
+    const r=wrap.getBoundingClientRect(),cssW=Math.max(1,r.width),cssH=Math.max(1,r.height);
+    const oldTable={...table};
+    const hadPlaced=players.some(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)&&(p.x!==0||p.y!==0));
+    dpr=Math.min(devicePixelRatio||1,2);
+
+    // Keep the original physics scale on narrow screens, but fit the rendered canvas
+    // to the actual CSS size. This prevents horizontal overflow on phones.
+    const worldScale=Math.max(1,720/cssW);
+    W=Math.round(cssW*worldScale);H=Math.round(cssH*worldScale);
+    canvas.width=Math.max(1,Math.floor(cssW*dpr));
+    canvas.height=Math.max(1,Math.floor(cssH*dpr));
+    canvas.style.width='100%';canvas.style.height='100%';
+    ctx.setTransform(canvas.width/W,0,0,canvas.height/H,0,0);
+
     const margin=Math.min(W,H)*0.092;table={x:margin,y:margin*.86,w:W-2*margin,h:H-margin*1.82};
-    if(players.length&&!shotActive&&!roundEnded)placePlayers();
+
+    // Preserve positions across orientation/viewport changes instead of resetting the round.
+    if(hadPlaced&&oldTable.w>0&&oldTable.h>0){
+      const sx=table.w/oldTable.w,sy=table.h/oldTable.h;
+      players.forEach(p=>{
+        p.x=table.x+(p.x-oldTable.x)*sx;p.y=table.y+(p.y-oldTable.y)*sy;
+        p.vx*=sx;p.vy*=sy;
+      });
+    }
   }
   addEventListener('resize',resize);
+  addEventListener('orientationchange',()=>setTimeout(resize,80));
 
   function spawnSlots(n){
     const cx=table.x+table.w/2,cy=table.y+table.h/2;
@@ -625,7 +663,7 @@
   }
   function axesFromCorners(c){return[norm(sub(c[1],c[0])),norm(sub(c[3],c[0]))];}
   function project(c,axis){let mn=Infinity,mx=-Infinity;for(const p of c){const d=dot(p,axis);mn=Math.min(mn,d);mx=Math.max(mx,d);}return{mn,mx};}
-  function pointInOBB(p,e){const q=rot({x:p.x-e.x,y:p.y-e.y},-e.angle);return Math.abs(q.x)<=e.width*e.scale/2+.5&&Math.abs(q.y)<=e.height*e.scale/2+.5;}
+  function pointInOBB(p,e,pad=0){const q=rot({x:p.x-e.x,y:p.y-e.y},-e.angle);return Math.abs(q.x)<=e.width*e.scale/2+.5+pad&&Math.abs(q.y)<=e.height*e.scale/2+.5+pad;}
   function sat(a,b){
     if(a.falling||b.falling)return null;
     const ca=corners(a),cb=corners(b),axes=[...axesFromCorners(ca),...axesFromCorners(cb)];let overlap=Infinity,best=null;
@@ -760,12 +798,14 @@
 
   function canvasPos(ev){const r=canvas.getBoundingClientRect();return{x:(ev.clientX-r.left)*(W/r.width),y:(ev.clientY-r.top)*(H/r.height)};}
   canvas.addEventListener('pointerdown',ev=>{
-    const p=currentPlayer();if(!gameStarted||roundEnded||shotActive||!p.alive||p.type==='cpu')return;const q=canvasPos(ev);if(!pointInOBB(q,p))return;
-    dragging=true;dragStart=q;dragNow=q;grabOffset=sub(q,{x:p.x,y:p.y});canvas.setPointerCapture(ev.pointerId);powerBox.classList.add('active');
+    const p=currentPlayer();if(!gameStarted||roundEnded||shotActive||!p.alive||p.type==='cpu')return;
+    const q=canvasPos(ev),r=canvas.getBoundingClientRect(),touchPad=ev.pointerType==='touch'?14*(W/Math.max(1,r.width)):0;
+    if(!pointInOBB(q,p,touchPad))return;
+    ev.preventDefault();dragging=true;dragStart=q;dragNow=q;grabOffset=sub(q,{x:p.x,y:p.y});canvas.setPointerCapture(ev.pointerId);powerBox.classList.add('active');
   });
-  canvas.addEventListener('pointermove',ev=>{if(!dragging)return;dragNow=canvasPos(ev);updatePowerUI();});
+  canvas.addEventListener('pointermove',ev=>{if(!dragging)return;ev.preventDefault();dragNow=canvasPos(ev);updatePowerUI();});
   canvas.addEventListener('pointerup',ev=>{
-    if(!dragging)return;dragging=false;powerBox.classList.remove('active');dragNow=canvasPos(ev);
+    if(!dragging)return;ev.preventDefault();dragging=false;powerBox.classList.remove('active');dragNow=canvasPos(ev);
     const p=currentPlayer(),pull=sub(dragStart,dragNow),d=Math.min(len(pull),175);
     if(d>10&&p.alive){const shot=humanShotParams(p,pull,d),hit=add({x:p.x,y:p.y},grabOffset);shoot(p,mul(shot.dir,shot.mag),hit);shotActive=true;settleTimer=0;setMessage(`${p.name} SHOT!`);}
     updatePowerUI();
