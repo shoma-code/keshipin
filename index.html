@@ -56,6 +56,23 @@
   .effectTag.down{color:#fda4af;border-color:#fb718544;background:#fb71850d}
   .effectTag.neutral{color:#bfdbfe;border-color:#60a5fa44;background:#60a5fa0d}
   .partSummary{margin-top:10px;border-top:1px solid #ffffff12;padding-top:9px;color:#98a5af;font-size:10px;line-height:1.55}
+  .compatPanel{margin-top:10px;padding:10px;border:1px solid #ffffff14;border-radius:11px;background:#0b1014}
+  .compatHead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}
+  .compatTitle{font-size:9px;font-weight:900;letter-spacing:.12em;color:#9aa8b4}
+  .compatOverall{font-size:9px;font-weight:900;border-radius:999px;padding:4px 7px;border:1px solid #ffffff18;background:#ffffff08}
+  .compatOverall.good{color:#86efc0;border-color:#6ee7b744;background:#6ee7b70d}
+  .compatOverall.mid{color:#bfdbfe;border-color:#60a5fa44;background:#60a5fa0d}
+  .compatOverall.bad{color:#fda4af;border-color:#fb718544;background:#fb71850d}
+  .compatRows{display:grid;gap:6px}
+  .compatRow{display:grid;grid-template-columns:42px 1fr;gap:6px;align-items:start;font-size:9px}
+  .compatType{font-weight:900;color:#9aa8b4;padding-top:3px}
+  .compatChips{display:flex;flex-wrap:wrap;gap:4px}
+  .compatChip{border-radius:999px;padding:3px 6px;border:1px solid #ffffff17;background:#ffffff08;color:#cbd5dd;font-weight:800}
+  .compatChip.good{color:#86efc0;border-color:#6ee7b744;background:#6ee7b70d}
+  .compatChip.bad{color:#fda4af;border-color:#fb718544;background:#fb71850d}
+  .compatLegend{margin-top:7px;color:#7f8d98;font-size:9px;line-height:1.45}
+  select.compatGood{border-color:#6ee7b788;box-shadow:0 0 0 1px #6ee7b722 inset}
+  select.compatBad{border-color:#fb718577;box-shadow:0 0 0 1px #fb71851c inset}
   .setupActions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
   .primaryBtn,.secondaryBtn{border-radius:12px;padding:12px 18px;font-weight:900;border:1px solid #3d4751}
   .primaryBtn{background:linear-gradient(180deg,#39dfa8,#13a372);color:#04130d;border:none;min-width:220px}
@@ -104,6 +121,17 @@
   .gameBtn:hover{background:#1a2228;border-color:#56616c}
   .legend{display:grid;grid-template-columns:1fr 1fr;gap:7px;font-size:10px;color:#aeb7c0}
   .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+  .assistControls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+  .toggleBtn{width:100%;border:1px solid #3a434c;background:#11161a;color:#cfd7de;border-radius:10px;padding:10px 8px;font-weight:900;font-size:11px;transition:.15s ease}
+  .toggleBtn:hover{background:#1a2228;border-color:#56616c}
+  .toggleBtn.active{background:#153329;border-color:#6ee7b777;color:#9ff3d2;box-shadow:inset 0 0 0 1px #6ee7b722}
+  .toggleBtn.ai.active{background:#15283c;border-color:#60a5fa77;color:#a7d0ff;box-shadow:inset 0 0 0 1px #60a5fa22}
+  .assistPanel{margin-top:10px;border:1px solid #ffffff14;background:#0f1418;border-radius:11px;padding:10px;font-size:10px;line-height:1.65;color:#c8d1d8}
+  .assistPanel strong{color:#f3f6f8}
+  .assistPanel .assistTitle{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:10px;font-weight:900;letter-spacing:.07em;color:#9fb0be;margin-bottom:5px}
+  .assistPanel .assistHint{color:#8ea0ad}
+  .assistPanel .aiLine{color:#a7d0ff}
+  .assistPanel .physicsLine{color:#b8efd9}
 
   @media(max-width:1000px){
     #app{grid-template-columns:1fr}.stageWrap{min-height:62vh}aside{display:grid;grid-template-columns:1fr 1fr}.wide{grid-column:1/-1}
@@ -183,6 +211,14 @@
         <div><span class="dot" style="background:#fb7185"></span>支持率落下</div>
       </div>
       <p class="sub" style="margin-top:10px">全消しゴム同士を回転付きインパルス法で衝突計算。9点支持率が低くなると机から落下します。</p>
+      <div class="assistControls">
+        <button class="toggleBtn active" id="physicsGuideBtn" type="button">物理ガイド ON</button>
+        <button class="toggleBtn ai" id="aiAssistBtn" type="button">AIアシスト OFF</button>
+      </div>
+      <div class="assistPanel" id="assistPanel">
+        <div class="assistTitle"><span>SHOT ASSIST</span><span id="assistModeText">PHYSICS</span></div>
+        <div id="assistText">発射前に、現在の消しゴムへ働く摩擦・反発・回転のポイントを表示します。</div>
+      </div>
     </div>
 
     <div class="card">
@@ -204,6 +240,7 @@
   const msg=$('msg'), turnBadge=$('turnBadge'), roundBadge=$('roundBadge'), scorePills=$('scorePills');
   const powerBox=$('powerBox'), powerFill=$('powerFill'), powerNum=$('powerNum');
   const setupScreen=$('setupScreen'), gameScreen=$('gameScreen'), playerConfigs=$('playerConfigs'), setupStatus=$('setupStatus');
+  const physicsGuideBtn=$('physicsGuideBtn'), aiAssistBtn=$('aiAssistBtn'), assistPanel=$('assistPanel'), assistText=$('assistText'), assistModeText=$('assistModeText');
 
   const TAU=Math.PI*2;
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -225,19 +262,34 @@
       {name:'コンパクト 40',w:76,h:40,m:0.95,power:1.08,control:1.16,spin:1.12,color:'#f5f3ea'},
       {name:'ロング 70',w:108,h:36,m:1.05,power:1.00,control:1.08,spin:1.25,color:'#e6eef4'},
       {name:'ヘビー 55',w:88,h:46,m:1.34,power:0.90,control:0.92,spin:0.82,color:'#e4e0d6'},
-      {name:'ワイド 60',w:96,h:54,m:1.18,power:0.96,control:1.00,spin:0.90,color:'#f3eadf'}
+      {name:'ワイド 60',w:96,h:54,m:1.18,power:0.96,control:1.00,spin:0.90,color:'#f3eadf'},
+      {name:'スリム 35',w:82,h:30,m:0.84,power:1.12,control:1.25,spin:1.34,color:'#eef7ff'},
+      {name:'ショートワイド 50',w:80,h:58,m:1.10,power:1.01,control:1.12,spin:0.96,color:'#fff4df'},
+      {name:'オフセット 65',w:100,h:42,m:1.12,power:1.04,control:0.94,spin:1.38,color:'#efe7ff'},
+      {name:'タンク 80',w:104,h:58,m:1.42,power:0.86,control:0.88,spin:0.72,color:'#e7e1d7'},
+      {name:'レーサー 45',w:90,h:34,m:0.90,power:1.14,control:1.04,spin:1.18,color:'#e8fff5'}
     ],
     sleeve:[
       {name:'紙スリーブ',friction:1.55,restitution:0.42,grip:1.00,color:'#60a5fa'},
       {name:'ラバースリーブ',friction:2.35,restitution:0.24,grip:1.28,color:'#6ee7b7'},
       {name:'ポリマースリーブ',friction:1.05,restitution:0.63,grip:0.82,color:'#fbbf24'},
-      {name:'メタルテープ',friction:0.72,restitution:0.78,grip:0.66,color:'#c4b5fd'}
+      {name:'メタルテープ',friction:0.72,restitution:0.78,grip:0.66,color:'#c4b5fd'},
+      {name:'フェルトスリーブ',friction:2.62,restitution:0.18,grip:1.32,color:'#f59e0b'},
+      {name:'シリコンスリーブ',friction:2.02,restitution:0.34,grip:1.20,color:'#34d399'},
+      {name:'テフロンテープ',friction:0.58,restitution:0.70,grip:0.60,color:'#e5e7eb'},
+      {name:'コルクスリーブ',friction:1.82,restitution:0.31,grip:1.10,color:'#b7791f'},
+      {name:'ハイブリッドスリーブ',friction:1.28,restitution:0.56,grip:0.94,color:'#22d3ee'}
     ],
     core:[
       {name:'バランスコア',impulse:1.00,spin:1.00,damp:1.00},
       {name:'パワーコア',impulse:1.18,spin:0.82,damp:0.95},
       {name:'スピンコア',impulse:0.93,spin:1.46,damp:1.06},
-      {name:'コントロールコア',impulse:0.90,spin:0.76,damp:1.18}
+      {name:'コントロールコア',impulse:0.90,spin:0.76,damp:1.18},
+      {name:'ブーストコア',impulse:1.25,spin:0.72,damp:0.90},
+      {name:'ジャイロコア',impulse:0.95,spin:1.55,damp:1.00},
+      {name:'ダンパーコア',impulse:0.86,spin:0.68,damp:1.26},
+      {name:'レスポンスコア',impulse:1.08,spin:1.16,damp:0.94},
+      {name:'タクティカルコア',impulse:0.98,spin:1.10,damp:1.10}
     ]
   };
 
@@ -246,19 +298,34 @@
       {desc:'小さく軽い万能型。初速と操作性が高く、細かい角度調整やスピンショットがしやすい。ただし重い相手との正面衝突では押し負けやすい。',tags:[['↑ POWER','up'],['↑ CONTROL','up'],['↑ SPIN','up'],['↓ MASS','down']]},
       {desc:'細長いテクニック型。接触できる範囲が広く、中心を外して当てたときに回転を生みやすい。横向きになると机の端には注意。',tags:[['↑ SPIN','up'],['↑ REACH','up'],['○ CONTROL','neutral']]},
       {desc:'重さで押すパワー型。衝突で速度を奪われにくく、相手を押し出しやすい。重いぶん加速と回転は控えめ。',tags:[['↑ MASS','up'],['↑ STABILITY','up'],['↓ SPIN','down'],['↓ SPEED','down']]},
-      {desc:'幅広で安定するディフェンス型。机に残る面積を確保しやすく、横からの衝突にも強め。大きいので端でははみ出しやすい。',tags:[['↑ STABILITY','up'],['↑ MASS','up'],['○ CONTROL','neutral'],['↓ SPIN','down']]}
+      {desc:'幅広で安定するディフェンス型。机に残る面積を確保しやすく、横からの衝突にも強め。大きいので端でははみ出しやすい。',tags:[['↑ STABILITY','up'],['↑ MASS','up'],['○ CONTROL','neutral'],['↓ SPIN','down']]},
+      {desc:'薄く軽い精密操作型。小さな引きでも速度が乗り、回転も付けやすい。軽量なので相手の強打を正面で受けるのは苦手。',tags:[['↑↑ CONTROL','up'],['↑ SPIN','up'],['↑ SPEED','up'],['↓↓ MASS','down']]},
+      {desc:'短く幅広い守備寄りモデル。支持点が机上に残りやすく、端際で粘りやすい。大きな回転より位置取りを重視する構成。',tags:[['↑ STABILITY','up'],['↑ CONTROL','up'],['○ MASS','neutral'],['↓ SPIN','down']]},
+      {desc:'長さと回転性能を両立した変則型。中心を外したヒットで大きく回りやすく、角度を使った押し出しが得意。',tags:[['↑↑ SPIN','up'],['↑ REACH','up'],['↓ CONTROL','down'],['○ POWER','neutral']]},
+      {desc:'最大級の重量と面積を持つ要塞型。正面衝突と押し合いに強いが、加速・旋回とも鈍く、端に出ると復帰しにくい。',tags:[['↑↑ MASS','up'],['↑↑ STABILITY','up'],['↓ SPEED','down'],['↓↓ SPIN','down']]},
+      {desc:'軽量かつ高出力の直進型。素早く間合いを詰めるショット向きで、タンク型より押し合いには弱いが攻めのテンポを作りやすい。',tags:[['↑↑ POWER','up'],['↑ SPEED','up'],['○ SPIN','neutral'],['↓ MASS','down']]}
     ],
     sleeve:[
       {desc:'クセの少ない標準スリーブ。摩擦と反発のバランスがよく、初めてのカスタムでも扱いやすい。',tags:[['○ GRIP','neutral'],['○ BOUNCE','neutral'],['○ SLIDE','neutral']]},
       {desc:'机をしっかりつかむ高摩擦タイプ。止まりやすく狙った場所に残しやすい反面、ぶつかった後の跳ね返りは弱い。',tags:[['↑ GRIP','up'],['↑ BRAKE','up'],['↓ BOUNCE','down']]},
       {desc:'滑りと反発を両立した攻撃型。衝突後も動きが残りやすく連鎖的に相手を押せるが、自分も流れやすい。',tags:[['↑ BOUNCE','up'],['↑ SLIDE','up'],['↓ GRIP','down']]},
-      {desc:'最も滑って最も跳ねるピーキー型。強い弾き合いが得意だが、停止位置の予測が難しく自滅にも注意。',tags:[['↑↑ BOUNCE','up'],['↑↑ SLIDE','up'],['↓ GRIP','down'],['↓ CONTROL','down']]}
+      {desc:'最も滑って最も跳ねるピーキー型。強い弾き合いが得意だが、停止位置の予測が難しく自滅にも注意。',tags:[['↑↑ BOUNCE','up'],['↑↑ SLIDE','up'],['↓ GRIP','down'],['↓ CONTROL','down']]},
+      {desc:'強い摩擦で急停止するブレーキ特化型。狙った場所に残りやすい一方、飛距離と衝突後の伸びはかなり小さい。',tags:[['↑↑ BRAKE','up'],['↑ GRIP','up'],['↓↓ BOUNCE','down'],['↓ RANGE','down']]},
+      {desc:'高いグリップを維持しながら少し反発も残す安定型。ラバーより動きが素直で、防御とコントロールの両立に向く。',tags:[['↑ GRIP','up'],['↑ CONTROL','up'],['○ BOUNCE','neutral']]},
+      {desc:'摩擦が極端に低い高速スライド型。少ない力でも長く滑るため遠距離攻撃に向くが、止めるのが難しい。',tags:[['↑↑ SLIDE','up'],['↑ RANGE','up'],['↓ GRIP','down'],['↓ BRAKE','down']]},
+      {desc:'やや高摩擦で反発を抑えた受け止め型。衝突後の暴れを減らし、机中央で粘る守備的な立ち回りに向く。',tags:[['↑ STABILITY','up'],['↑ GRIP','up'],['↓ BOUNCE','down']]},
+      {desc:'滑り・反発・グリップを中間にまとめた攻守両用型。極端な長所はないが、どんな本体やコアとも組み合わせやすい。',tags:[['○ GRIP','neutral'],['↑ BOUNCE','up'],['↑ SLIDE','up'],['○ CONTROL','neutral']]}
     ],
     core:[
       {desc:'全性能を変えすぎない基準コア。どの本体・スリーブとも合わせやすく、安定したオールラウンド構成になる。',tags:[['○ ALL ROUND','neutral']]},
       {desc:'ショットの初動を強化する攻撃コア。直線的な押し出しが強くなる代わりに、スピン性能は少し下がる。',tags:[['↑ POWER','up'],['↓ SPIN','down'],['↑ ATTACK','up']]},
       {desc:'回転を大きく増幅するテクニカルコア。斜め当てや端をかすめるショット向きだが、直線の押し込みは少し弱い。',tags:[['↑↑ SPIN','up'],['↓ POWER','down'],['↑ TECH','up']]},
-      {desc:'速度と回転を落ち着かせる安定コア。暴れにくく位置を読みやすい反面、最大火力は低め。',tags:[['↑ CONTROL','up'],['↑ DAMPING','up'],['↓ POWER','down'],['↓ SPIN','down']]}
+      {desc:'速度と回転を落ち着かせる安定コア。暴れにくく位置を読みやすい反面、最大火力は低め。',tags:[['↑ CONTROL','up'],['↑ DAMPING','up'],['↓ POWER','down'],['↓ SPIN','down']]},
+      {desc:'一発の初速をさらに伸ばす高出力コア。遠い相手にも圧力をかけやすいが、滑るスリーブと組むとオーバーしやすい。',tags:[['↑↑ POWER','up'],['↑ RANGE','up'],['↓ SPIN','down'],['↓ CONTROL','down']]},
+      {desc:'回転量を最大級まで高めるジャイロ型。偏心ヒットの変化が大きく、曲線的な当て方や連続接触を狙いやすい。',tags:[['↑↑ SPIN','up'],['↑ TECH','up'],['↓ STRAIGHT','down']]},
+      {desc:'速度と回転の減衰を強める防御コア。ショットは弱くなるが、衝突後に暴れにくく中央へ残しやすい。',tags:[['↑↑ DAMPING','up'],['↑ CONTROL','up'],['↓ POWER','down'],['↓ SPIN','down']]},
+      {desc:'入力への反応を鋭くした攻撃寄りコア。パワーとスピンを少しずつ高め、素早い攻めを作る代わりに停止はやや難しい。',tags:[['↑ POWER','up'],['↑ SPIN','up'],['↑ RESPONSE','up'],['↓ DAMPING','down']]},
+      {desc:'極端な性能を避けつつ制御と回転を少し高めた戦術型。相手や机端の位置を見てショットを切り替えるプレイに向く。',tags:[['↑ CONTROL','up'],['↑ SPIN','up'],['○ POWER','neutral'],['↑ TACTIC','up']]}
     ]
   };
 
@@ -267,8 +334,83 @@
   let dragging=false,dragStart=null,dragNow=null,grabOffset={x:0,y:0};
   let W=1000,H=720,dpr=1,table={x:95,y:88,w:810,h:525};
   let last=performance.now(),acc=0,gameStarted=false;
+  let physicsGuideEnabled=true,aiAssistEnabled=false;
 
-  function optionHTML(arr,selected){return arr.map((p,i)=>`<option value="${i}" ${i===selected?'selected':''}>${p.name}</option>`).join('');}
+  const PART_META={body:{idx:'bi',label:'本体'},sleeve:{idx:'si',label:'スリーブ'},core:{idx:'ci',label:'コア'}};
+  const norm01=(v,a,b)=>clamp((v-a)/(b-a),0,1);
+  const avg=a=>a.reduce((x,y)=>x+y,0)/(a.length||1);
+
+  function partAffinity(type,idx){
+    if(type==='body'){
+      const b=parts.body[idx],area=b.w*b.h;
+      return {
+        attack:norm01(b.power,.86,1.14),
+        spin:norm01(b.spin,.72,1.38),
+        defense:norm01(b.m,.84,1.42)*.68+norm01(area,2460,6032)*.32,
+        control:norm01(b.control,.88,1.25)
+      };
+    }
+    if(type==='sleeve'){
+      const q=parts.sleeve[idx],fr=norm01(q.friction,.58,2.62),bounce=norm01(q.restitution,.18,.78),grip=norm01(q.grip,.60,1.32),slide=1-fr;
+      return {attack:slide*.55+bounce*.45,spin:slide*.72+bounce*.28,defense:fr*.45+grip*.55,control:grip*.58+fr*.42};
+    }
+    const c=parts.core[idx],imp=norm01(c.impulse,.86,1.25),sp=norm01(c.spin,.68,1.55),damp=norm01(c.damp,.90,1.26);
+    return {attack:imp*.82+(1-damp)*.18,spin:sp*.86+(1-damp)*.14,defense:damp*.78+(1-imp)*.22,control:damp*.68+(1-Math.abs(imp-.45))*.32};
+  }
+
+  function affinitySimilarity(a,b){
+    const keys=['attack','spin','defense','control'];
+    const mins=keys.reduce((n,k)=>n+Math.min(a[k],b[k]),0),maxs=keys.reduce((n,k)=>n+Math.max(a[k],b[k]),0);
+    return maxs?mins/maxs:.5;
+  }
+
+  function compatibilityScore(type,idx,cfg){
+    const a=partAffinity(type,idx),others=Object.keys(PART_META).filter(t=>t!==type);
+    return avg(others.map(t=>affinitySimilarity(a,partAffinity(t,cfg[PART_META[t].idx]))));
+  }
+
+  function compatibilityRanking(type,cfg){
+    const list=parts[type].map((_,idx)=>({idx,score:compatibilityScore(type,idx,cfg)})).sort((a,b)=>b.score-a.score);
+    const good=new Set(list.slice(0,2).map(x=>x.idx)),bad=new Set(list.slice(-2).map(x=>x.idx));
+    return {list,good,bad};
+  }
+
+  function compatibilityKind(type,idx,cfg){
+    const r=compatibilityRanking(type,cfg);
+    return r.good.has(idx)?'good':r.bad.has(idx)?'bad':'mid';
+  }
+
+  function optionHTML(type,cfg){
+    const selected=cfg[PART_META[type].idx],r=compatibilityRanking(type,cfg);
+    return parts[type].map((part,i)=>{
+      const mark=r.good.has(i)?'◎':r.bad.has(i)?'△':'○';
+      return `<option value="${i}" ${i===selected?'selected':''}>${mark} ${escapeHTML(part.name)}</option>`;
+    }).join('');
+  }
+
+  function compatibilityPanelHTML(cfg){
+    const currentKinds=Object.keys(PART_META).map(t=>compatibilityKind(t,cfg[PART_META[t].idx],cfg));
+    const goodCount=currentKinds.filter(x=>x==='good').length,badCount=currentKinds.filter(x=>x==='bad').length;
+    const overall=goodCount>=2&&badCount===0?['good','◎ 好相性']:badCount>=2?['bad','△ 相性注意']:['mid','○ 標準'];
+    const rows=Object.keys(PART_META).map(type=>{
+      const r=compatibilityRanking(type,cfg);
+      const goods=r.list.slice(0,2).map(x=>`<span class="compatChip good">◎ ${escapeHTML(parts[type][x.idx].name)}</span>`).join('');
+      const bads=r.list.slice(-2).reverse().map(x=>`<span class="compatChip bad">△ ${escapeHTML(parts[type][x.idx].name)}</span>`).join('');
+      return `<div class="compatRow"><span class="compatType">${PART_META[type].label}</span><div class="compatChips">${goods}${bads}</div></div>`;
+    }).join('');
+    return `<div class="compatHead"><span class="compatTitle">PART COMPATIBILITY</span><span class="compatOverall ${overall[0]}">${overall[1]}</span></div><div class="compatRows">${rows}</div><div class="compatLegend">◎ = 現在のほか2パーツと噛み合いやすい候補 / △ = 性能方向が噛み合いにくい候補。強さそのものではなく構成の相性です。</div>`;
+  }
+
+  function refreshCompatibilityUI(card,i){
+    const cfg=setupData[i];
+    for(const type of Object.keys(PART_META)){
+      const el=card.querySelector(`.${type}Input`),selected=cfg[PART_META[type].idx];
+      el.innerHTML=optionHTML(type,cfg);el.value=String(selected);
+      const kind=compatibilityKind(type,selected,cfg);
+      el.classList.toggle('compatGood',kind==='good');el.classList.toggle('compatBad',kind==='bad');
+    }
+    card.querySelector('.compatPanel').innerHTML=compatibilityPanelHTML(cfg);
+  }
 
   function renderSetup(){
     playerConfigs.innerHTML='';
@@ -282,9 +424,9 @@
           <div class="full"><label>名前</label><input class="nameInput" maxlength="14" value="${escapeHTML(d.name)}"></div>
           <div class="cpuOnly"><label>CPU難易度</label><select class="difficultyInput"><option value="easy" ${d.difficulty==='easy'?'selected':''}>EASY</option><option value="normal" ${d.difficulty==='normal'?'selected':''}>NORMAL</option><option value="hard" ${d.difficulty==='hard'?'selected':''}>HARD</option></select></div>
           <div class="cpuOnly"><label>&nbsp;</label><div class="setupHint">難しいほど狙いと威力調整が正確</div></div>
-          <div><label>1. 本体</label><select class="bodyInput">${optionHTML(parts.body,d.bi)}</select></div>
-          <div><label>2. スリーブ</label><select class="sleeveInput">${optionHTML(parts.sleeve,d.si)}</select></div>
-          <div><label>3. コア</label><select class="coreInput">${optionHTML(parts.core,d.ci)}</select></div>
+          <div><label>1. 本体</label><select class="bodyInput">${optionHTML('body',d)}</select></div>
+          <div><label>2. スリーブ</label><select class="sleeveInput">${optionHTML('sleeve',d)}</select></div>
+          <div><label>3. コア</label><select class="coreInput">${optionHTML('core',d)}</select></div>
           <div><label>&nbsp;</label><button class="randomBtn">パーツをランダム</button></div>
         </div>
         <div class="partDetails">
@@ -292,10 +434,12 @@
           <div class="partInfo sleeveInfo"></div>
           <div class="partInfo coreInfo"></div>
         </div>
-        <div class="partSummary"></div>`;
+        <div class="partSummary"></div>
+        <div class="compatPanel"></div>`;
       playerConfigs.appendChild(card);
       bindConfigCard(card,i);
       updateConfigSummary(card,i);
+      refreshCompatibilityUI(card,i);
     }
     const active=setupData.filter(d=>d.kind!=='off').length;
     setupStatus.textContent=active>=2?`${active}枠参加 · PLAYER ${setupData.filter(d=>d.kind==='human').length} / CPU ${setupData.filter(d=>d.kind==='cpu').length}`:'2枠以上を参加させてください。';
@@ -314,13 +458,13 @@
     name.oninput=()=>{setupData[i].name=name.value.trimStart();};
     diff.onchange=()=>{setupData[i].difficulty=diff.value;updateConfigSummary(card,i);};
     [b,s,c].forEach(el=>el.onchange=()=>{
-      setupData[i].bi=+b.value;setupData[i].si=+s.value;setupData[i].ci=+c.value;updateConfigSummary(card,i);
+      setupData[i].bi=+b.value;setupData[i].si=+s.value;setupData[i].ci=+c.value;updateConfigSummary(card,i);refreshCompatibilityUI(card,i);
     });
     card.querySelector('.randomBtn').onclick=()=>{
       setupData[i].bi=Math.floor(Math.random()*parts.body.length);
       setupData[i].si=Math.floor(Math.random()*parts.sleeve.length);
       setupData[i].ci=Math.floor(Math.random()*parts.core.length);
-      b.value=setupData[i].bi;s.value=setupData[i].si;c.value=setupData[i].ci;updateConfigSummary(card,i);
+      updateConfigSummary(card,i);refreshCompatibilityUI(card,i);
     };
   }
 
@@ -408,13 +552,58 @@
   function setMessage(t){msg.textContent=t;}
   function currentPlayer(){return players[turnIndex]||players[0];}
 
+  function describePhysics(p){
+    if(!p)return '対戦を開始すると物理演算の説明を表示します。';
+    const friction=p.friction>=2.1?'高摩擦で止まりやすい':p.friction<=1?'低摩擦で長く滑る':'中程度の摩擦でバランス型';
+    const bounce=p.restitution>=.65?'反発が強く、衝突後も速度が残りやすい':p.restitution<=.3?'反発が弱く、相手へ力を伝えて減速しやすい':'反発は中程度';
+    const spin=p.spin>=1.25?'スピンが強く、中心を外したショットで回転しやすい':p.spin<=.85?'回転は控えめで直進が安定':'回転性能は標準的';
+    const mass=p.mass>=1.25?'重いため衝突で押し負けにくい':p.mass<=1?'軽いため加速しやすいが正面衝突では不利':'質量は中程度';
+    const grip=p.grip>=1.15?'高GRIPで滑走と衝突時の横滑りを抑えやすい':p.grip<=.8?'低GRIPで長く滑るが衝突時に流れやすい':'GRIPは標準的';
+    const control=p.control>=1.2?'高CONTROLで狙いブレと入力ロスが小さい':p.control<=.95?'低CONTROLで偏心ショット時の狙いブレが大きい':'CONTROLは標準的';
+    return `<div class="physicsLine"><strong>物理:</strong> ${friction}。${bounce}。${spin}。${mass}。${grip}。${control}。</div><div class="assistHint">ドラッグ距離が発射速度、つかんだ位置の中心ズレが角速度に影響します。GRIPは滑走減衰と衝突摩擦、CONTROLは人間操作の方向精度と力の伝達効率に反映されます。</div>`;
+  }
+
+  function getAiSuggestion(p){
+    if(!p||p.type==='cpu'||!p.alive)return null;
+    const opponents=players.filter(x=>x.alive&&x!==p);
+    if(!opponents.length)return null;
+    const target=[...opponents].sort((a,b)=>edgeRoom(a)-edgeRoom(b))[0];
+    const dx=target.x-p.x,dy=target.y-p.y,distance=Math.hypot(dx,dy)||1;
+    const dir={x:dx/distance,y:dy/distance};
+    const room=edgeRoom(target);
+    let power=clamp((distance*1.12+90)/(720*p.shotPower*humanShotTuning(p).transfer)*100,28,92);
+    if(room<35)power=clamp(power+7,35,96);
+    const side=Math.abs(dx)>Math.abs(dy)?(dx>0?'右':'左'):(dy>0?'下':'上');
+    return {target,dir,power,room,side};
+  }
+
+  function updateAssistPanel(){
+    if(!assistPanel)return;
+    const p=players.length?currentPlayer():null;
+    physicsGuideBtn.classList.toggle('active',physicsGuideEnabled);
+    aiAssistBtn.classList.toggle('active',aiAssistEnabled);
+    physicsGuideBtn.textContent=`物理ガイド ${physicsGuideEnabled?'ON':'OFF'}`;
+    aiAssistBtn.textContent=`AIアシスト ${aiAssistEnabled?'ON':'OFF'}`;
+    const blocks=[];
+    if(physicsGuideEnabled)blocks.push(describePhysics(p));
+    if(aiAssistEnabled){
+      const s=getAiSuggestion(p);
+      if(!p)blocks.push('<div class="aiLine"><strong>AI:</strong> 対戦開始後に狙いを提案します。</div>');
+      else if(p.type==='cpu')blocks.push('<div class="aiLine"><strong>AI:</strong> CPUターン中は自動操作のためアシスト表示を停止します。</div>');
+      else if(!s)blocks.push('<div class="aiLine"><strong>AI:</strong> 狙える相手がいません。</div>');
+      else blocks.push(`<div class="aiLine"><strong>AI:</strong> ${escapeHTML(s.target.name)} を狙うなら、だいたい <strong>${s.side}方向</strong>・<strong>${Math.round(s.power)}%</strong> が目安です。</div><div class="assistHint">青い推奨ラインは「中心をまっすぐ押す」基準。少し外側をつかむとスピンを加えられます。</div>`);
+    }
+    assistModeText.textContent=physicsGuideEnabled&&aiAssistEnabled?'PHYSICS + AI':aiAssistEnabled?'AI':physicsGuideEnabled?'PHYSICS':'OFF';
+    assistText.innerHTML=blocks.length?blocks.join(''):'ガイドはOFFです。必要なときに上のボタンから切り替えられます。';
+  }
+
   function updateUI(){
     if(!players.length)return;
     const p=currentPlayer(), role=p.type==='cpu'?`CPU ${p.difficulty.toUpperCase()}`:'PLAYER';turnBadge.textContent=`${p.name} · ${role} TURN`;turnBadge.style.color=p.playerColor;roundBadge.textContent=`ROUND ${round}`;
     scorePills.innerHTML=players.map(x=>`<span class="scorePill" style="border-color:${x.playerColor}55;color:${x.playerColor}">${escapeHTML(x.name)} · ${scores[x.index]}</span>`).join('');
     $('currentName').textContent=p.name;$('currentName').style.color=p.playerColor;
     $('currentParts').innerHTML=`<span>タイプ <b>${p.type==='cpu'?`CPU / ${p.difficulty.toUpperCase()}`:'PLAYER'}</b></span><span>本体 <b>${parts.body[p.bi].name}</b></span><span>スリーブ <b>${parts.sleeve[p.si].name}</b></span><span>コア <b>${parts.core[p.ci].name}</b></span>`;
-    updateStats(p);updateTurnOrder();
+    updateStats(p);updateTurnOrder();updateAssistPanel();
   }
 
   function updateTurnOrder(){
@@ -424,8 +613,8 @@
   function scoreStat(v,min,max){return clamp((v-min)/(max-min)*100,0,100);}
   function updateStats(p){
     const stats=[
-      ['パワー',p.shotPower,scoreStat(p.shotPower,.75,1.45)],['重さ',p.mass,scoreStat(p.mass,.8,1.45)],['グリップ',p.grip,scoreStat(p.grip,.6,1.35)],
-      ['反発',p.restitution,scoreStat(p.restitution,.2,.82)],['スピン',p.spin,scoreStat(p.spin,.6,1.65)],['制御',p.control,scoreStat(p.control,.75,1.4)]
+      ['パワー',p.shotPower,scoreStat(p.shotPower,.70,1.45)],['重さ',p.mass,scoreStat(p.mass,.8,1.45)],['グリップ',p.grip,scoreStat(p.grip,.6,1.35)],
+      ['反発',p.restitution,scoreStat(p.restitution,.15,.82)],['スピン',p.spin,scoreStat(p.spin,.6,2.2)],['制御',p.control,scoreStat(p.control,.75,1.6)]
     ];
     $('stats').innerHTML=stats.map(([n,v,q])=>`<div class="stat"><span>${n}</span><div class="bar"><div class="fill" style="width:${q.toFixed(0)}%"></div></div><span class="n">${v.toFixed(2)}</span></div>`).join('');
   }
@@ -459,7 +648,7 @@
       rv=sub(add({x:b.vx,y:b.vy},crossSV(b.wv,rb)),add({x:a.vx,y:a.vy},crossSV(a.wv,ra)));
       let t=sub(rv,mul(n,dot(rv,n))),tl=len(t);if(tl>1e-6)t=mul(t,1/tl);
       const denT=a.invMass+b.invMass+cross(ra,t)**2*a.invI+cross(rb,t)**2*b.invI;let jt=-dot(rv,t)/(denT||1);
-      const mu=Math.sqrt((a.friction*.12)*(b.friction*.12));jt=clamp(jt,-j*mu,j*mu);const f=mul(t,jt);
+      const mu=Math.sqrt((a.friction*a.grip*.12)*(b.friction*b.grip*.12));jt=clamp(jt,-j*mu,j*mu);const f=mul(t,jt);
       a.vx-=f.x*a.invMass;a.vy-=f.y*a.invMass;a.wv-=cross(ra,f)*a.invI;
       b.vx+=f.x*b.invMass;b.vy+=f.y*b.invMass;b.wv+=cross(rb,f)*b.invI;
     }
@@ -475,7 +664,8 @@
   function stepBody(e,dt){
     if(e.falling){e.fallT+=dt;e.scale=Math.max(.06,1-e.fallT*1.08);e.alpha=Math.max(0,1-e.fallT*.88);e.angle+=e.wv*dt*1.8;e.x+=e.vx*dt*.4;e.y+=e.vy*dt*.4;return;}
     e.x+=e.vx*dt;e.y+=e.vy*dt;e.angle+=e.wv*dt;
-    const speed=Math.hypot(e.vx,e.vy),drag=e.friction*(speed<80?1.32:.84),f=Math.exp(-drag*dt);e.vx*=f;e.vy*=f;e.wv*=Math.exp(-(e.friction*.72+.65)*dt);
+    const speed=Math.hypot(e.vx,e.vy),gripFactor=.78+.22*clamp(e.grip,.55,1.4),drag=e.friction*gripFactor*(speed<80?1.32:.84),f=Math.exp(-drag*dt);
+    e.vx*=f;e.vy*=f;e.wv*=Math.exp(-(e.friction*(.55+.22*clamp(e.grip,.55,1.4))+.65)*dt);
     if(speed<2.4){e.vx*=.7;e.vy*=.7;}if(Math.abs(e.wv)<.025)e.wv*=.6;
     e.support=supportRatio(e);const moving=Math.hypot(e.vx,e.vy)>14||Math.abs(e.wv)>.5,threshold=moving?.34:.24;
     if(e.support<threshold){e.falling=true;e.alive=false;e.fallT=0;e.vx*=.78;e.vy*=.78;e.wv*=1.2;updateTurnOrder();}
@@ -556,6 +746,18 @@
     if(e.falling)return;e.vx+=impulse.x*e.invMass;e.vy+=impulse.y*e.invMass;const r=sub(point,{x:e.x,y:e.y});e.wv+=cross(r,impulse)*e.invI*e.spin;
   }
 
+  function humanShotTuning(p){
+    const controlN=norm01(p.control,.75,1.60),gripN=norm01(p.grip,.60,1.35);
+    return {controlN,gripN,transfer:(.94+.08*controlN)*(.985+.03*gripN)};
+  }
+
+  function humanShotParams(p,pull,d){
+    const rawDir=norm(pull),t=humanShotTuning(p);
+    const lateral=clamp(cross(grabOffset,rawDir)/(Math.max(p.width,p.height)*.5),-1,1);
+    const skew=lateral*(1-t.controlN)*.14;
+    return {dir:rot(rawDir,skew),mag:(d/175)*720*p.shotPower*t.transfer,skew,...t};
+  }
+
   function canvasPos(ev){const r=canvas.getBoundingClientRect();return{x:(ev.clientX-r.left)*(W/r.width),y:(ev.clientY-r.top)*(H/r.height)};}
   canvas.addEventListener('pointerdown',ev=>{
     const p=currentPlayer();if(!gameStarted||roundEnded||shotActive||!p.alive||p.type==='cpu')return;const q=canvasPos(ev);if(!pointInOBB(q,p))return;
@@ -565,11 +767,20 @@
   canvas.addEventListener('pointerup',ev=>{
     if(!dragging)return;dragging=false;powerBox.classList.remove('active');dragNow=canvasPos(ev);
     const p=currentPlayer(),pull=sub(dragStart,dragNow),d=Math.min(len(pull),175);
-    if(d>10&&p.alive){const dir=norm(pull),mag=(d/175)*720*p.shotPower,hit=add({x:p.x,y:p.y},grabOffset);shoot(p,mul(dir,mag),hit);shotActive=true;settleTimer=0;setMessage(`${p.name} SHOT!`);}
+    if(d>10&&p.alive){const shot=humanShotParams(p,pull,d),hit=add({x:p.x,y:p.y},grabOffset);shoot(p,mul(shot.dir,shot.mag),hit);shotActive=true;settleTimer=0;setMessage(`${p.name} SHOT!`);}
     updatePowerUI();
   });
   canvas.addEventListener('pointercancel',()=>{dragging=false;powerBox.classList.remove('active');updatePowerUI();});
-  function updatePowerUI(){const d=dragging?Math.min(len(sub(dragStart,dragNow)),175):0,q=Math.round(d/175*100);powerFill.style.width=q+'%';powerNum.textContent=q+'%';}
+  function updatePowerUI(){
+    const d=dragging?Math.min(len(sub(dragStart,dragNow)),175):0,q=Math.round(d/175*100);powerFill.style.width=q+'%';powerNum.textContent=q+'%';
+    if(dragging&&physicsGuideEnabled&&players.length){
+      const p=currentPlayer(),pull=sub(dragStart,dragNow),dir=norm(pull),grab=Math.hypot(grabOffset.x,grabOffset.y),spinSide=cross(grabOffset,dir),shot=humanShotParams(p,pull,d);
+      const spinText=grab<4?'ほぼ無回転':Math.abs(spinSide)<2?'弱い回転':spinSide>0?'反時計回りスピン':'時計回りスピン';
+      const predicted=shot.mag/p.mass,skewDeg=Math.abs(shot.skew)*180/Math.PI;
+      const gripText=p.grip>=1.15?'高GRIP・止まりやすい':p.grip<=.8?'低GRIP・滑りやすい':'標準GRIP';
+      assistText.innerHTML=`<div class="physicsLine"><strong>発射プレビュー:</strong> POWER <strong>${q}%</strong> / 初速目安 <strong>${predicted.toFixed(0)}</strong> / ${spinText}</div><div class="assistHint">CONTROL補正: 方向ブレ約 ${skewDeg.toFixed(1)}° / 入力伝達 ${(shot.transfer*100).toFixed(0)}% ・ ${gripText}。中心から離れた位置をつかむほど回転モーメントが大きくなります。</div>`;
+    }else if(!dragging){updateAssistPanel();}
+  }
   addEventListener('keydown',e=>{if(gameStarted&&e.key.toLowerCase()==='r')resetRound();});
 
   function roundedRect(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);}
@@ -593,6 +804,18 @@
     if(!e.falling){ctx.save();ctx.globalAlpha=isCurrent?.95:.5;ctx.fillStyle=e.playerColor;ctx.beginPath();ctx.arc(e.x,e.y,isCurrent?4:3,0,TAU);ctx.fill();ctx.restore();}
   }
 
+  function drawAiAssist(){
+    if(!aiAssistEnabled||dragging||shotActive||roundEnded||!players.length)return;
+    const p=currentPlayer();if(!p||p.type==='cpu'||!p.alive)return;
+    const s=getAiSuggestion(p);if(!s)return;
+    const length=Math.min(Math.hypot(s.target.x-p.x,s.target.y-p.y),220);
+    const end={x:p.x+s.dir.x*length,y:p.y+s.dir.y*length};
+    ctx.save();
+    ctx.setLineDash([7,7]);ctx.lineWidth=2.5;ctx.strokeStyle='#60a5facc';ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(end.x,end.y);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#60a5fa';ctx.beginPath();ctx.arc(end.x,end.y,4.5,0,TAU);ctx.fill();
+    ctx.font='800 11px system-ui';ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(`AI ${Math.round(s.power)}%`,end.x,end.y-8);ctx.restore();
+  }
+
   function drawAim(){
     if(!dragging)return;const p=currentPlayer(),pull=sub(dragStart,dragNow),d=Math.min(len(pull),175),dir=norm(pull),start={x:p.x,y:p.y},end=add(start,mul(dir,80+d*1.1));
     ctx.save();ctx.setLineDash([10,8]);ctx.lineWidth=3;ctx.strokeStyle=p.playerColor;ctx.beginPath();ctx.moveTo(start.x,start.y);ctx.lineTo(end.x,end.y);ctx.stroke();ctx.setLineDash([]);
@@ -601,11 +824,14 @@
   }
 
   function drawSupport(e){if(e.falling||e.support>.55)return;ctx.save();ctx.globalAlpha=(.58-e.support)*1.6;ctx.strokeStyle='#fb7185';ctx.lineWidth=3;ctx.beginPath();ctx.arc(e.x,e.y,Math.max(e.width,e.height)*.72,0,TAU);ctx.stroke();ctx.restore();}
-  function render(){ctx.clearRect(0,0,W,H);drawTable();players.forEach(drawEraser);players.forEach(drawSupport);drawAim();}
+  function render(){ctx.clearRect(0,0,W,H);drawTable();players.forEach(drawEraser);players.forEach(drawSupport);drawAiAssist();drawAim();}
 
   function loop(now){
     const frame=Math.min((now-last)/1000,.033);last=now;if(gameStarted){acc+=frame;const dt=1/120;let guard=0;while(acc>=dt&&guard++<6){physicsStep(dt);acc-=dt;}render();}requestAnimationFrame(loop);
   }
+
+  physicsGuideBtn.onclick=()=>{physicsGuideEnabled=!physicsGuideEnabled;updateAssistPanel();};
+  aiAssistBtn.onclick=()=>{aiAssistEnabled=!aiAssistEnabled;updateAssistPanel();};
 
   $('startBtn').onclick=startMatch;
   $('newRoundBtn').onclick=resetRound;
@@ -616,7 +842,7 @@
     renderSetup();gameStarted=false;gameScreen.style.display='none';setupScreen.style.display='block';window.scrollTo({top:0,behavior:'smooth'});
   };
 
-  renderSetup();requestAnimationFrame(loop);
+  renderSetup();updateAssistPanel();requestAnimationFrame(loop);
 })();
 </script>
 </body>
