@@ -24,7 +24,10 @@
   .hero p{margin:0;color:var(--muted);max-width:700px;line-height:1.7;font-size:13px}
   .localBadge{flex:0 0 auto;border:1px solid #ffffff24;background:#ffffff0d;border-radius:999px;padding:9px 13px;font-size:12px;font-weight:900;letter-spacing:.07em}
   .setupPanel{background:linear-gradient(180deg,#1b2127,#14181c);border:1px solid #303841;border-radius:22px;padding:18px;box-shadow:0 30px 80px #0007}
-  .setupTop{display:block;margin-bottom:16px}
+  .setupTop{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,320px);gap:14px;align-items:end;margin-bottom:16px}
+  .arenaModeBox{background:#10161a;border:1px solid #313a43;border-radius:13px;padding:11px 12px}
+  .arenaModeBox label{margin-bottom:7px}
+  .arenaModeHelp{margin-top:6px;color:#8997a2;font-size:10px;line-height:1.45}
   label{display:block;font-size:11px;color:#cbd4dc;margin:0 0 6px;font-weight:700;letter-spacing:.03em}
   select,input{width:100%;border:1px solid #3a444e;background:#0f1418;color:#f2f6f8;border-radius:10px;padding:10px 11px;outline:none}
   select:focus,input:focus{border-color:#74818e}
@@ -148,7 +151,7 @@
     #app{grid-template-columns:1fr}.stageWrap{min-height:62vh}aside{display:grid;grid-template-columns:1fr 1fr}.wide{grid-column:1/-1}
   }
   @media(max-width:760px){
-    #playerConfigs{grid-template-columns:1fr}.hero{align-items:flex-start;flex-direction:column}.pcGrid{grid-template-columns:1fr}.pcGrid .full{grid-column:auto}.partDetails{grid-template-columns:1fr}
+    #playerConfigs{grid-template-columns:1fr}.hero{align-items:flex-start;flex-direction:column}.setupTop{grid-template-columns:1fr}.pcGrid{grid-template-columns:1fr}.pcGrid .full{grid-column:auto}.partDetails{grid-template-columns:1fr}
   }
   @media(max-width:620px){
     #setupScreen{padding:calc(14px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left))}
@@ -187,7 +190,16 @@
 
     <div class="setupPanel">
       <div class="setupTop">
-        <div class="setupHint">各枠で参加タイプを選択してください。プレイヤーは同じマウス／タッチを交代で操作し、CPUの番は状況に応じて強打・弱打・スピンショットを自動で使い分けます。CPUのパーツは「3パーツすべてが◎高相性」になる自動セットから選ばれます。CPUだけの観戦対戦も可能です。</div>
+        <div class="setupHint">各枠で参加タイプを選択してください。プレイヤーは同じマウス／タッチを交代で操作し、CPUの番は状況に応じて強打・弱打・スピンショットを自動で使い分けます。CPUのパーツは「3パーツすべてが◎高相性」になる自動セットから選ばれます。ULTRA HARDは複数のエリート構成からランダム選出されます。</div>
+        <div class="arenaModeBox">
+          <label for="arenaSizeSelect">フィールドサイズ</label>
+          <select id="arenaSizeSelect">
+            <option value="normal">NORMAL · 標準</option>
+            <option value="large">LARGE · 約1.35倍</option>
+            <option value="giant">GIANT · 約1.75倍</option>
+          </select>
+          <div class="arenaModeHelp">LARGE / GIANT は消しゴムの大きさや基本物理を変えず、机そのものを広げます。遠距離戦・位置取り重視になります。</div>
+        </div>
       </div>
       <div id="playerConfigs"></div>
       <div class="setupActions">
@@ -203,7 +215,7 @@
   <section class="stageWrap" id="stageWrap">
     <canvas id="game"></canvas>
     <div class="hud">
-      <div class="hudLeft"><span class="badge turn" id="turnBadge">PLAYER 1 TURN</span><span class="badge" id="roundBadge">ROUND 1</span></div>
+      <div class="hudLeft"><span class="badge turn" id="turnBadge">PLAYER 1 TURN</span><span class="badge" id="roundBadge">ROUND 1</span><span class="badge" id="arenaBadge">ARENA NORMAL</span></div>
       <div id="scorePills"></div>
     </div>
     <div class="msg" id="msg">自分の消しゴムを後ろへドラッグしてショット！</div>
@@ -264,7 +276,7 @@
 
   const $=id=>document.getElementById(id);
   const canvas=$('game'), ctx=canvas.getContext('2d'), wrap=$('stageWrap');
-  const msg=$('msg'), turnBadge=$('turnBadge'), roundBadge=$('roundBadge'), scorePills=$('scorePills');
+  const msg=$('msg'), turnBadge=$('turnBadge'), roundBadge=$('roundBadge'), arenaBadge=$('arenaBadge'), scorePills=$('scorePills');
   const powerBox=$('powerBox'), powerFill=$('powerFill'), powerNum=$('powerNum');
   const setupScreen=$('setupScreen'), gameScreen=$('gameScreen'), playerConfigs=$('playerConfigs'), setupStatus=$('setupStatus');
   const physicsGuideBtn=$('physicsGuideBtn'), aiAssistBtn=$('aiAssistBtn'), assistPanel=$('assistPanel'), assistText=$('assistText'), assistModeText=$('assistModeText');
@@ -362,6 +374,8 @@
   let setupData=DEFAULT_NAMES.map((name,i)=>({name,kind:i<2?'human':'off',difficulty:'normal',bi:i%parts.body.length,si:i%parts.sleeve.length,ci:i%parts.core.length}));
   let players=[],scores=[0,0,0,0],round=1,turnIndex=0,shotActive=false,settleTimer=0,roundEnded=false,roundEndTimer=0,cpuThinkTimer=0;
   let dragging=false,dragStart=null,dragNow=null,grabOffset={x:0,y:0};
+  const ARENA_MODES={normal:{label:'NORMAL',scale:1},large:{label:'LARGE',scale:1.35},giant:{label:'GIANT',scale:1.75}};
+  let arenaMode='normal';
   let W=1000,H=720,dpr=1,table={x:95,y:88,w:810,h:525};
   let last=performance.now(),acc=0,gameStarted=false;
   let physicsGuideEnabled=true,aiAssistEnabled=false;
@@ -585,12 +599,42 @@
     return pick;
   }
 
-  function assignUltraCpuSet(cfg){
-    // ULTRA HARD専用。全◎セットの中でも、直線火力とCPUの精密射撃が最も噛み合う
-    // RACER 45 + POLYMER + POWER CORE (OVERDRIVE) を固定装備にする。
-    const preferred={bi:8,si:2,ci:1};
-    if(isCpuAutoSet(preferred)){cfg.bi=preferred.bi;cfg.si=preferred.si;cfg.ci=preferred.ci;return preferred;}
-    return assignCpuAutoSet(cfg);
+  // ULTRA HARD専用のエリート構成。すべて「3パーツ◎」かつ固有SET BONUS持ち。
+  // 火力・連撃・回転・精密・防御など、CPUが強みを活かしやすい構成を複数採用する。
+  const ULTRA_BUILD_POOL=[
+    {bi:8,si:2,ci:1}, // OVERDRIVE       : 最大チャージ直線火力
+    {bi:8,si:2,ci:7}, // CHAIN DRIVE     : 衝突後も速度維持
+    {bi:0,si:2,ci:1}, // KINETIC NEEDLE  : 初撃追加インパルス
+    {bi:5,si:0,ci:8}, // VECTOR HOLD     : 初衝突の方向安定
+    {bi:5,si:0,ci:0}, // DUAL RANGE      : 弱打/強打の両対応
+    {bi:1,si:0,ci:2}, // HOOK SHOT       : 高精度カーブ
+    {bi:1,si:8,ci:5}, // ORBIT DRIVE     : かすめ連続接触
+    {bi:6,si:2,ci:5}, // DRIFT SHOT      : 高速横滑りカーブ
+    {bi:5,si:7,ci:8}, // PINPOINT BRAKE  : 精密停止
+    {bi:7,si:4,ci:6}, // FORTRESS        : 停止時の要塞防御
+    {bi:2,si:1,ci:3}, // COUNTER WEIGHT  : 強打への反作用
+    {bi:7,si:1,ci:6}  // LAST STAND      : 落下寸前の粘り
+  ];
+
+  function ultraCpuSets(){
+    const valid=ULTRA_BUILD_POOL.filter(isCpuAutoSet);
+    return valid.length?valid:cpuAutoSets().slice(0,Math.min(8,cpuAutoSets().length));
+  }
+
+  function isUltraCpuSet(cfg){
+    return ultraCpuSets().some(x=>x.bi===cfg.bi&&x.si===cfg.si&&x.ci===cfg.ci);
+  }
+
+  function assignUltraCpuSet(cfg,preferDifferent=false){
+    let pool=ultraCpuSets();
+    if(!pool.length)return assignCpuAutoSet(cfg,preferDifferent);
+    if(preferDifferent&&pool.length>1){
+      const other=pool.filter(x=>x.bi!==cfg.bi||x.si!==cfg.si||x.ci!==cfg.ci);
+      if(other.length)pool=other;
+    }
+    const pick=pool[Math.floor(Math.random()*pool.length)];
+    cfg.bi=pick.bi;cfg.si=pick.si;cfg.ci=pick.ci;
+    return pick;
   }
 
   function optionHTML(type,cfg){
@@ -629,7 +673,7 @@
     playerConfigs.innerHTML='';
     for(let i=0;i<4;i++){
       const d=setupData[i];
-      if(d.kind==='cpu'&&d.difficulty==='ultra')assignUltraCpuSet(d);
+      if(d.kind==='cpu'&&d.difficulty==='ultra'){if(!isUltraCpuSet(d))assignUltraCpuSet(d);}
       else if(d.kind==='cpu'&&!isCpuAutoSet(d))assignCpuAutoSet(d);
       const card=document.createElement('div');
       card.className='playerConfig'+(d.kind==='off'?' off':'');card.style.setProperty('--pc',PLAYER_COLORS[i]);card.dataset.index=i;card.dataset.kind=d.kind;card.dataset.difficulty=d.difficulty||'normal';
@@ -639,11 +683,11 @@
           <div class="full"><label>参加タイプ</label><select class="typeInput typeSelect"><option value="human" ${d.kind==='human'?'selected':''}>プレイヤー</option><option value="cpu" ${d.kind==='cpu'?'selected':''}>CPU</option><option value="off" ${d.kind==='off'?'selected':''}>参加なし</option></select></div>
           <div class="full"><label>名前</label><input class="nameInput" maxlength="14" value="${escapeHTML(d.name)}"></div>
           <div class="cpuOnly"><label>CPU難易度</label><select class="difficultyInput"><option value="easy" ${d.difficulty==='easy'?'selected':''}>EASY</option><option value="normal" ${d.difficulty==='normal'?'selected':''}>NORMAL</option><option value="hard" ${d.difficulty==='hard'?'selected':''}>HARD</option><option value="ultra" ${d.difficulty==='ultra'?'selected':''}>ULTRA HARD</option></select></div>
-          <div class="cpuOnly"><label>&nbsp;</label><div class="setupHint">難しいほど判断・狙い・威力調整が正確。ULTRA HARDはクリティカル位置まで読み、最強セットとほぼ最善手で狙います。</div></div>
+          <div class="cpuOnly"><label>&nbsp;</label><div class="setupHint">難しいほど判断・狙い・威力調整が正確。ULTRA HARDはクリティカル位置まで読み、複数のエリートセットから選ばれた構成でほぼ最善手を狙います。</div></div>
           <div><label>1. 本体</label><select class="bodyInput" ${d.kind==='cpu'?'disabled':''}>${optionHTML('body',d)}</select></div>
           <div><label>2. スリーブ</label><select class="sleeveInput" ${d.kind==='cpu'?'disabled':''}>${optionHTML('sleeve',d)}</select></div>
           <div><label>3. コア</label><select class="coreInput" ${d.kind==='cpu'?'disabled':''}>${optionHTML('core',d)}</select></div>
-          <div><label>&nbsp;</label><button class="randomBtn">${d.kind==='cpu'?(d.difficulty==='ultra'?'ULTRA最強セットにする':'CPU高相性セットを変更'):'パーツをランダム'}</button></div>
+          <div><label>&nbsp;</label><button class="randomBtn">${d.kind==='cpu'?(d.difficulty==='ultra'?'ULTRAエリートセットを変更':'CPU高相性セットを変更'):'パーツをランダム'}</button></div>
         </div>
         <div class="partDetails">
           <div class="partInfo bodyInfo"></div>
@@ -680,7 +724,7 @@
       setupData[i].bi=+b.value;setupData[i].si=+s.value;setupData[i].ci=+c.value;updateConfigSummary(card,i);refreshCompatibilityUI(card,i);
     });
     card.querySelector('.randomBtn').onclick=()=>{
-      if(setupData[i].kind==='cpu'){if(setupData[i].difficulty==='ultra')assignUltraCpuSet(setupData[i]);else assignCpuAutoSet(setupData[i],true);}
+      if(setupData[i].kind==='cpu'){if(setupData[i].difficulty==='ultra')assignUltraCpuSet(setupData[i],true);else assignCpuAutoSet(setupData[i],true);}
       else{
         setupData[i].bi=Math.floor(Math.random()*parts.body.length);
         setupData[i].si=Math.floor(Math.random()*parts.sleeve.length);
@@ -718,6 +762,7 @@
 
   function startMatch(){
     syncSetupNames();
+    arenaMode=$('arenaSizeSelect')?.value||'normal';
     const active=setupData.map((d,i)=>({d,i})).filter(x=>x.d.kind!=='off');
     if(active.length<2){setupStatus.textContent='対戦にはプレイヤーまたはCPUを2枠以上参加させてください。';return;}
     players=active.map(x=>buildEraser(x.i,x.d));
@@ -743,7 +788,8 @@
     // Keep the original physics scale on narrow screens, but fit the rendered canvas
     // to the actual CSS size. This prevents horizontal overflow on phones.
     const worldScale=Math.max(1,720/cssW);
-    W=Math.round(cssW*worldScale);H=Math.round(cssH*worldScale);
+    const arenaScale=ARENA_MODES[arenaMode]?.scale||1;
+    W=Math.round(cssW*worldScale*arenaScale);H=Math.round(cssH*worldScale*arenaScale);
     canvas.width=Math.max(1,Math.floor(cssW*dpr));
     canvas.height=Math.max(1,Math.floor(cssH*dpr));
     canvas.style.width='100%';canvas.style.height='100%';
@@ -855,7 +901,7 @@
 
   function updateUI(){
     if(!players.length)return;
-    const p=currentPlayer(), role=p.type==='cpu'?`CPU ${p.difficulty.toUpperCase()}`:'PLAYER';turnBadge.textContent=`${p.name} · ${role} TURN`;turnBadge.style.color=p.playerColor;roundBadge.textContent=`ROUND ${round}`;
+    const p=currentPlayer(), role=p.type==='cpu'?`CPU ${p.difficulty.toUpperCase()}`:'PLAYER';turnBadge.textContent=`${p.name} · ${role} TURN`;turnBadge.style.color=p.playerColor;roundBadge.textContent=`ROUND ${round}`;if(arenaBadge)arenaBadge.textContent=`ARENA ${ARENA_MODES[arenaMode]?.label||'NORMAL'}`;
     scorePills.innerHTML=players.map(x=>`<span class="scorePill" style="border-color:${x.playerColor}55;color:${x.playerColor}">${escapeHTML(x.name)} · ${scores[x.index]}</span>`).join('');
     $('currentName').textContent=p.name;$('currentName').style.color=p.playerColor;
     $('currentParts').innerHTML=`<span>タイプ <b>${p.type==='cpu'?`CPU / ${p.difficulty.toUpperCase()}`:'PLAYER'}</b></span><span>本体 <b>${parts.body[p.bi].name}</b></span><span>スリーブ <b>${parts.sleeve[p.si].name}</b></span><span>コア <b>${parts.core[p.ci].name}</b></span>${p.setBonus?`<span>セットボーナス <b style="color:#fbbf24">${escapeHTML(p.setBonus.name)}</b></span>`:''}`;
@@ -1314,6 +1360,7 @@
   physicsGuideBtn.onclick=()=>{physicsGuideEnabled=!physicsGuideEnabled;updateAssistPanel();};
   aiAssistBtn.onclick=()=>{aiAssistEnabled=!aiAssistEnabled;updateAssistPanel();};
 
+  $('arenaSizeSelect').onchange=()=>{arenaMode=$('arenaSizeSelect').value||'normal';};
   $('startBtn').onclick=startMatch;
   $('newRoundBtn').onclick=resetRound;
   $('newMatchBtn').onclick=newMatch;
