@@ -34,6 +34,9 @@
   .playerConfig::after{content:"";position:absolute;width:120px;height:120px;border-radius:50%;right:-55px;top:-55px;background:var(--pc);opacity:.06;pointer-events:none}
   .playerConfig.off{opacity:.55}
   .playerConfig[data-kind="cpu"]{box-shadow:inset 0 0 0 1px #fbbf2428}
+  .playerConfig[data-kind="cpu"][data-difficulty="ultra"]{border-top-color:#fb7185;box-shadow:inset 0 0 0 1px #fb718544,0 0 34px #fb71851c}
+  .playerConfig[data-kind="cpu"][data-difficulty="ultra"] .slotTag{color:#fecdd3;border-color:#fb718566;background:#fb718514}
+  .playerConfig[data-kind="cpu"][data-difficulty="ultra"] .difficultyInput{border-color:#fb718588;color:#fecdd3;box-shadow:0 0 0 1px #fb718522 inset}
   .typeSelect{font-weight:900}
   .cpuOnly{display:none}
   .playerConfig[data-kind="cpu"] .cpuOnly{display:block}
@@ -74,6 +77,7 @@
   .compatLegend{margin-top:7px;color:#7f8d98;font-size:9px;line-height:1.45}
   select.compatGood{border-color:#6ee7b788;box-shadow:0 0 0 1px #6ee7b722 inset}
   select.compatBad{border-color:#fb718577;box-shadow:0 0 0 1px #fb71851c inset}
+  select:disabled{opacity:.7;cursor:not-allowed;background:#11171b;color:#aeb9c1}
   .setupActions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
   .primaryBtn,.secondaryBtn{border-radius:12px;padding:12px 18px;font-weight:900;border:1px solid #3d4751}
   .primaryBtn{background:linear-gradient(180deg,#39dfa8,#13a372);color:#04130d;border:none;min-width:220px}
@@ -133,6 +137,12 @@
   .assistPanel .assistHint{color:#8ea0ad}
   .assistPanel .aiLine{color:#a7d0ff}
   .assistPanel .physicsLine{color:#b8efd9}
+  .setBonusBox{margin-top:9px;border:1px solid #fbbf2444;background:linear-gradient(135deg,#fbbf2412,#60a5fa0b);border-radius:10px;padding:9px 10px}
+  .setBonusHead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+  .setBonusLabel{font-size:9px;font-weight:1000;letter-spacing:.13em;color:#fbbf24}
+  .setBonusName{font-size:11px;font-weight:1000;color:#fff1b8;text-align:right}
+  .setBonusDesc{font-size:9px;line-height:1.55;color:#d8d1b8}
+  .setBonusNone{margin-top:8px;color:#78858f;font-size:9px;line-height:1.5}
 
   @media(max-width:1000px){
     #app{grid-template-columns:1fr}.stageWrap{min-height:62vh}aside{display:grid;grid-template-columns:1fr 1fr}.wide{grid-column:1/-1}
@@ -177,7 +187,7 @@
 
     <div class="setupPanel">
       <div class="setupTop">
-        <div class="setupHint">各枠で参加タイプを選択してください。プレイヤーは同じマウス／タッチを交代で操作し、CPUの番は自動でショットします。パーツを選ぶと、その下に特徴とステータス傾向が表示されます。CPUだけの観戦対戦も可能です。</div>
+        <div class="setupHint">各枠で参加タイプを選択してください。プレイヤーは同じマウス／タッチを交代で操作し、CPUの番は状況に応じて強打・弱打・スピンショットを自動で使い分けます。CPUのパーツは「3パーツすべてが◎高相性」になる自動セットから選ばれます。CPUだけの観戦対戦も可能です。</div>
       </div>
       <div id="playerConfigs"></div>
       <div class="setupActions">
@@ -355,6 +365,7 @@
   let W=1000,H=720,dpr=1,table={x:95,y:88,w:810,h:525};
   let last=performance.now(),acc=0,gameStarted=false;
   let physicsGuideEnabled=true,aiAssistEnabled=false;
+  let fxBursts=[],fxBanners=[],screenFlash={time:0,duration:0,color:'255,255,255',alpha:0},screenShake={time:0,duration:0,amp:0};
 
   const PART_META={body:{idx:'bi',label:'本体'},sleeve:{idx:'si',label:'スリーブ'},core:{idx:'ci',label:'コア'}};
   const norm01=(v,a,b)=>clamp((v-a)/(b-a),0,1);
@@ -400,6 +411,188 @@
     return r.good.has(idx)?'good':r.bad.has(idx)?'bad':'mid';
   }
 
+  const SET_BONUSES={
+    '5-7-8':{id:'pinpointBrake',name:'PINPOINT BRAKE',jp:'ピンポイント・ブレーキ',desc:'低速域に入ると摩擦が大きく増え、狙った位置で止まりやすい。'},
+    '5-0-8':{id:'vectorHold',name:'VECTOR HOLD',jp:'ベクトル・ホールド',desc:'各ショット最初の衝突で進行方向の乱れを抑え、狙った方向へ抜けやすい。'},
+    '5-0-0':{id:'dualRange',name:'DUAL RANGE',jp:'デュアル・レンジ',desc:'弱打は精密化、強打は威力上昇。ショット強度で性格が切り替わる。'},
+    '1-0-0':{id:'sweepHit',name:'SWEEP HIT',jp:'スイープ・ヒット',desc:'中心を外した衝突で横方向の力と回転を追加し、相手を払うように弾く。'},
+    '3-7-8':{id:'sideAnchor',name:'SIDE ANCHOR',jp:'サイド・アンカー',desc:'長辺側から受けた衝突のノックバックを軽減。向きを合わせるほど守りが強い。'},
+    '1-0-2':{id:'hookShot',name:'HOOK SHOT',jp:'フック・ショット',desc:'スピン量に応じて飛行中の軌道が曲がる。'},
+    '1-8-5':{id:'orbit',name:'ORBIT DRIVE',jp:'オービット・ドライブ',desc:'かすめる衝突で回転を維持し、自分も接線方向へ抜けて連続接触を狙える。'},
+    '1-8-7':{id:'slingshot',name:'SLINGSHOT',jp:'スリングショット',desc:'偏心して撃つほど回転入力の一部を初速へ変換する。'},
+    '0-8-7':{id:'snapShot',name:'SNAP SHOT',jp:'スナップ・ショット',desc:'短いドラッグでも威力が素早く立ち上がり、80%程度の引きで通常最大級へ届く。'},
+    '5-7-0':{id:'softLanding',name:'SOFT LANDING',jp:'ソフト・ランディング',desc:'衝突後の低速域で並進と回転を強く減衰し、暴れずに着地しやすい。'},
+    '8-2-7':{id:'chainDrive',name:'CHAIN DRIVE',jp:'チェイン・ドライブ',desc:'最初の衝突で失う速度を抑え、相手を弾いた後も走り続けやすい。'},
+    '0-2-7':{id:'dashCurve',name:'DASH CURVE',jp:'ダッシュ・カーブ',desc:'発射直後だけ強く曲がり、時間とともに直進へ戻る。'},
+    '6-8-5':{id:'sCurve',name:'S-CURVE',jp:'エス・カーブ',desc:'ショット途中で曲がる向きが一度反転し、S字軌道を描く。'},
+    '3-7-0':{id:'impactAbsorb',name:'IMPACT ABSORB',jp:'インパクト・アブソーブ',desc:'被弾時の跳ね返りを吸収し、接触した相手も少し減速させる。'},
+    '6-2-5':{id:'driftShot',name:'DRIFT SHOT',jp:'ドリフト・ショット',desc:'高速なほど横力が強まり、大きく横滑りしながら曲がる。'},
+    '8-2-1':{id:'overdrive',name:'OVERDRIVE',jp:'オーバードライブ',desc:'通常100%を超えて最大120%までチャージできる直線火力特化。'},
+    '5-5-3':{id:'edgeBrake',name:'EDGE BRAKE',jp:'エッジ・ブレーキ',desc:'ラウンドに1度、崖際で外向き速度を減衰して落下を回避しやすくする。'},
+    '3-5-3':{id:'brace',name:'BRACE',jp:'ブレース',desc:'ほぼ停止して待ち構えていると、最初に受けるノックバックを軽減する。'},
+    '0-2-1':{id:'kineticNeedle',name:'KINETIC NEEDLE',jp:'キネティック・ニードル',desc:'各ショット最初の相手への衝突だけ、追加インパルスを与える。'},
+    '7-4-6':{id:'fortress',name:'FORTRESS',jp:'フォートレス',desc:'ほぼ停止すると要塞化し、動き出すまで被ノックバックを大きく軽減する。'},
+    '2-1-3':{id:'counterWeight',name:'COUNTER WEIGHT',jp:'カウンターウェイト',desc:'停止中に強打を受けると、その一部を反作用として攻撃側へ返す。'},
+    '7-1-6':{id:'lastStand',name:'LAST STAND',jp:'ラスト・スタンド',desc:'ラウンドに1度、落下寸前で外向き速度を大幅に殺し短時間だけ踏みとどまる。'}
+  };
+
+  const bonusKey=cfg=>`${cfg.bi}-${cfg.si}-${cfg.ci}`;
+  const getSetBonus=cfg=>SET_BONUSES[bonusKey(cfg)]||null;
+  const bonusHTML=cfg=>{
+    const b=getSetBonus(cfg);
+    return b?`<div class="setBonusBox"><div class="setBonusHead"><span class="setBonusLabel">SET BONUS</span><span class="setBonusName">${escapeHTML(b.name)}</span></div><div class="setBonusDesc"><strong>${escapeHTML(b.jp)}</strong> · ${escapeHTML(b.desc)}</div></div>`:`<div class="setBonusNone">3パーツすべてが◎になる組み合わせで固有の SET BONUS が発動します。</div>`;
+  };
+
+  function hexToRgb(hex){
+    const raw=String(hex||'').trim().replace('#','');
+    const full=raw.length===3?raw.split('').map(x=>x+x).join(''):raw.padEnd(6,'0').slice(0,6);
+    const n=parseInt(full,16);
+    return {r:(n>>16)&255,g:(n>>8)&255,b:n&255};
+  }
+  function rgba(hex,a=.3){const {r,g,b}=hexToRgb(hex);return `rgba(${r},${g},${b},${a})`;}
+  function bonusTheme(id){
+    if(['overdrive','kineticNeedle','chainDrive','snapShot','dualRange','slingshot','vectorHold','sweepHit'].includes(id))return{ring:'#fbbf24',glow:'#fb7185',palette:['#fff1b8','#fbbf24','#fb7185'],flash:'255,210,110'};
+    if(['hookShot','orbit','dashCurve','sCurve','driftShot'].includes(id))return{ring:'#60a5fa',glow:'#22d3ee',palette:['#dbeafe','#60a5fa','#22d3ee'],flash:'96,165,250'};
+    return{ring:'#6ee7b7',glow:'#fbbf24',palette:['#dcfce7','#6ee7b7','#fbbf24'],flash:'110,231,183'};
+  }
+  function canTriggerFx(e,key,cooldown=.22){
+    if(!e)return false;
+    e.fxCooldowns=e.fxCooldowns||{};
+    if((e.fxCooldowns[key]||0)>0)return false;
+    e.fxCooldowns[key]=cooldown;
+    return true;
+  }
+  function addScreenShake(amp=10,duration=.18){
+    if(amp>screenShake.amp||screenShake.time<=0){screenShake.amp=amp;screenShake.duration=duration;}
+    screenShake.time=Math.max(screenShake.time,duration);
+  }
+  function addScreenFlash(color='255,255,255',alpha=.16,duration=.18){
+    screenFlash={time:duration,duration,color,alpha:Math.max(screenFlash.alpha||0,alpha)};
+  }
+  function addBurst(x,y,{ring='#fff',glow='#fff',palette=['#fff'],size=90,duration=.55,label='',subLabel='',power=1}={}){
+    const particles=[];
+    const count=Math.round(16+12*power);
+    for(let i=0;i<count;i++)particles.push({
+      angle:Math.random()*TAU,
+      speed:size*(.45+Math.random()*.85),
+      radius:2+Math.random()*4,
+      color:palette[i%palette.length],
+      drift:(Math.random()*2-1)*.6
+    });
+    fxBursts.push({x,y,t:0,duration,size,ring,glow,palette,label,subLabel,power,particles,rays:10+Math.round(8*power)});
+  }
+  function announceFx(main,sub,accent='#ffffff'){
+    fxBanners.push({main,sub,accent,t:0,duration:1.02});
+    if(fxBanners.length>3)fxBanners.shift();
+  }
+  function triggerCriticalFx(e,contact){
+    addBurst(contact.x,contact.y,{ring:'#fff1b8',glow:'#fb7185',palette:['#fff7cc','#fbbf24','#fb7185'],size:Math.max(e.width,e.height)*1.55,duration:.72,label:'CRITICAL',subLabel:e.name,power:1.2});
+    announceFx('CRITICAL HIT!',e.name,'#fb7185');
+    addScreenFlash('251,113,133',.24,.22);
+    addScreenShake(13,.22);
+  }
+  function triggerSetBonusFx(e,contact=null,label='ACTIVATE',power=1){
+    if(!e?.setBonus)return;
+    const t=bonusTheme(e.setBonus.id),pt=contact||{x:e.x,y:e.y};
+    addBurst(pt.x,pt.y,{ring:t.ring,glow:t.glow,palette:t.palette,size:Math.max(e.width,e.height)*(1.05+.45*power),duration:.58+.10*power,label:e.setBonus.name,subLabel:label,power});
+    announceFx('SET BONUS',`${e.setBonus.name} · ${label}`,t.ring);
+    addScreenFlash(t.flash,.12+.05*power,.16+.06*power);
+    addScreenShake(7+5*power,.15+.04*power);
+  }
+  function updateSpecialFx(dt){
+    for(const fx of fxBursts)fx.t+=dt;
+    fxBursts=fxBursts.filter(fx=>fx.t<fx.duration);
+    for(const b of fxBanners)b.t+=dt;
+    fxBanners=fxBanners.filter(b=>b.t<b.duration);
+    screenFlash.time=Math.max(0,screenFlash.time-dt);
+    screenShake.time=Math.max(0,screenShake.time-dt);
+  }
+  function drawSpecialFx(){
+    for(const fx of fxBursts){
+      const p=clamp(fx.t/fx.duration,0,1),inv=1-p;
+      ctx.save();
+      ctx.translate(fx.x,fx.y);
+      const glowR=fx.size*(.30+1.10*p);
+      const gg=ctx.createRadialGradient(0,0,0,0,0,glowR);
+      gg.addColorStop(0,rgba(fx.glow,.26*inv));gg.addColorStop(.6,rgba(fx.ring,.12*inv));gg.addColorStop(1,rgba(fx.glow,0));
+      ctx.fillStyle=gg;ctx.beginPath();ctx.arc(0,0,glowR,0,TAU);ctx.fill();
+      for(let i=0;i<fx.rays;i++){
+        const ang=i/fx.rays*TAU+p*.9,inner=fx.size*(.18+.08*Math.sin(i+p*8)),outer=fx.size*(.65+1.05*p);
+        ctx.strokeStyle=rgba(fx.palette[i%fx.palette.length],(.22+.18*Math.sin(i+p*5))*inv);
+        ctx.lineWidth=2.2*(1-p*.45);
+        ctx.beginPath();ctx.moveTo(Math.cos(ang)*inner,Math.sin(ang)*inner);ctx.lineTo(Math.cos(ang)*outer,Math.sin(ang)*outer);ctx.stroke();
+      }
+      ctx.strokeStyle=rgba(fx.ring,.95*inv);ctx.lineWidth=6*(1-p*.5);ctx.beginPath();ctx.arc(0,0,fx.size*(.24+1.02*p),0,TAU);ctx.stroke();
+      ctx.strokeStyle=rgba(fx.palette[0],.52*inv);ctx.lineWidth=2.6*(1-p*.45);ctx.beginPath();ctx.arc(0,0,fx.size*(.10+.62*p),0,TAU);ctx.stroke();
+      for(const part of fx.particles){
+        const travel=part.speed*(.18+.92*p),px=Math.cos(part.angle+part.drift*p)*travel,py=Math.sin(part.angle+part.drift*p)*travel;
+        ctx.fillStyle=rgba(part.color,.95*inv);ctx.beginPath();ctx.arc(px,py,part.radius*(.75+.35*inv),0,TAU);ctx.fill();
+      }
+      const raise=fx.size*(.35+.25*p);
+      if(fx.label){ctx.fillStyle=rgba('#ffffff',.96*inv);ctx.font=`1000 ${Math.round(14+12*fx.power)}px system-ui`;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(fx.label,0,-raise);}
+      if(fx.subLabel){ctx.fillStyle=rgba(fx.ring,.92*inv);ctx.font='900 11px system-ui';ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(fx.subLabel,0,-raise+4);}
+      ctx.restore();
+    }
+  }
+  function drawFxOverlay(){
+    if(screenFlash.time>0&&screenFlash.duration>0){
+      const alpha=screenFlash.alpha*(screenFlash.time/screenFlash.duration);
+      ctx.save();ctx.fillStyle=`rgba(${screenFlash.color},${alpha})`;ctx.fillRect(0,0,W,H);ctx.restore();
+    }
+    for(let i=0;i<fxBanners.length;i++){
+      const b=fxBanners[i],p=clamp(b.t/b.duration,0,1),inT=clamp(p/.16,0,1),outT=clamp((1-p)/.30,0,1),alpha=Math.min(inT,outT);
+      const y=72+i*52+(1-inT)*-24;
+      const boxW=Math.min(390,W*.58),boxH=42;
+      ctx.save();ctx.translate(W/2,y);ctx.globalAlpha=alpha;
+      const grad=ctx.createLinearGradient(-boxW/2,0,boxW/2,0);grad.addColorStop(0,'rgba(8,12,16,.18)');grad.addColorStop(.18,rgba(b.accent,.18));grad.addColorStop(.82,rgba(b.accent,.06));grad.addColorStop(1,'rgba(8,12,16,.18)');
+      ctx.fillStyle=grad;ctx.strokeStyle=rgba(b.accent,.72);ctx.lineWidth=1.5;ctx.beginPath();ctx.roundRect(-boxW/2,-boxH/2,boxW,boxH,14);ctx.fill();ctx.stroke();
+      ctx.fillStyle=rgba('#ffffff',.98);ctx.font='1000 16px system-ui';ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(b.main,0,-1);
+      ctx.fillStyle=rgba(b.accent,.98);ctx.font='800 11px system-ui';ctx.textBaseline='top';ctx.fillText(b.sub,0,2);
+      ctx.restore();
+    }
+  }
+
+  let cpuAutoSetsCache=null;
+  function cpuAutoSets(){
+    if(cpuAutoSetsCache)return cpuAutoSetsCache;
+    const sets=[];
+    for(let bi=0;bi<parts.body.length;bi++)for(let si=0;si<parts.sleeve.length;si++)for(let ci=0;ci<parts.core.length;ci++){
+      const cfg={bi,si,ci};
+      const allGood=compatibilityKind('body',bi,cfg)==='good'&&compatibilityKind('sleeve',si,cfg)==='good'&&compatibilityKind('core',ci,cfg)==='good';
+      if(!allGood)continue;
+      const score=avg([compatibilityScore('body',bi,cfg),compatibilityScore('sleeve',si,cfg),compatibilityScore('core',ci,cfg)]);
+      sets.push({bi,si,ci,score});
+    }
+    cpuAutoSetsCache=sets.sort((a,b)=>b.score-a.score);
+    return cpuAutoSetsCache;
+  }
+
+  function isCpuAutoSet(cfg){
+    return cpuAutoSets().some(x=>x.bi===cfg.bi&&x.si===cfg.si&&x.ci===cfg.ci);
+  }
+
+  function assignCpuAutoSet(cfg,preferDifferent=false){
+    const sets=cpuAutoSets();
+    if(!sets.length)return null;
+    let pool=sets;
+    if(preferDifferent&&sets.length>1){
+      const other=sets.filter(x=>x.bi!==cfg.bi||x.si!==cfg.si||x.ci!==cfg.ci);
+      if(other.length)pool=other;
+    }
+    // 上位だけに固定せず、条件を満たす「全パーツ◎」セット全体から抽選する。
+    const pick=pool[Math.floor(Math.random()*pool.length)];
+    cfg.bi=pick.bi;cfg.si=pick.si;cfg.ci=pick.ci;
+    return pick;
+  }
+
+  function assignUltraCpuSet(cfg){
+    // ULTRA HARD専用。全◎セットの中でも、直線火力とCPUの精密射撃が最も噛み合う
+    // RACER 45 + POLYMER + POWER CORE (OVERDRIVE) を固定装備にする。
+    const preferred={bi:8,si:2,ci:1};
+    if(isCpuAutoSet(preferred)){cfg.bi=preferred.bi;cfg.si=preferred.si;cfg.ci=preferred.ci;return preferred;}
+    return assignCpuAutoSet(cfg);
+  }
+
   function optionHTML(type,cfg){
     const selected=cfg[PART_META[type].idx],r=compatibilityRanking(type,cfg);
     return parts[type].map((part,i)=>{
@@ -418,7 +611,7 @@
       const bads=r.list.slice(-2).reverse().map(x=>`<span class="compatChip bad">△ ${escapeHTML(parts[type][x.idx].name)}</span>`).join('');
       return `<div class="compatRow"><span class="compatType">${PART_META[type].label}</span><div class="compatChips">${goods}${bads}</div></div>`;
     }).join('');
-    return `<div class="compatHead"><span class="compatTitle">PART COMPATIBILITY</span><span class="compatOverall ${overall[0]}">${overall[1]}</span></div><div class="compatRows">${rows}</div><div class="compatLegend">◎ = 現在のほか2パーツと噛み合いやすい候補 / △ = 性能方向が噛み合いにくい候補。強さそのものではなく構成の相性です。</div>`;
+    return `<div class="compatHead"><span class="compatTitle">PART COMPATIBILITY</span><span class="compatOverall ${overall[0]}">${overall[1]}</span></div><div class="compatRows">${rows}</div><div class="compatLegend">◎ = 現在のほか2パーツと噛み合いやすい候補 / △ = 性能方向が噛み合いにくい候補。強さそのものではなく構成の相性です。</div>${bonusHTML(cfg)}`;
   }
 
   function refreshCompatibilityUI(card,i){
@@ -435,19 +628,22 @@
   function renderSetup(){
     playerConfigs.innerHTML='';
     for(let i=0;i<4;i++){
-      const d=setupData[i], card=document.createElement('div');
-      card.className='playerConfig'+(d.kind==='off'?' off':'');card.style.setProperty('--pc',PLAYER_COLORS[i]);card.dataset.index=i;card.dataset.kind=d.kind;
+      const d=setupData[i];
+      if(d.kind==='cpu'&&d.difficulty==='ultra')assignUltraCpuSet(d);
+      else if(d.kind==='cpu'&&!isCpuAutoSet(d))assignCpuAutoSet(d);
+      const card=document.createElement('div');
+      card.className='playerConfig'+(d.kind==='off'?' off':'');card.style.setProperty('--pc',PLAYER_COLORS[i]);card.dataset.index=i;card.dataset.kind=d.kind;card.dataset.difficulty=d.difficulty||'normal';
       card.innerHTML=`
         <div class="pcHead"><span class="playerDot"></span><div class="pcTitle">SLOT ${i+1}</div><span class="slotTag">${d.kind==='human'?'PLAYER':d.kind==='cpu'?'CPU':'OFF'}</span></div>
         <div class="pcGrid">
           <div class="full"><label>参加タイプ</label><select class="typeInput typeSelect"><option value="human" ${d.kind==='human'?'selected':''}>プレイヤー</option><option value="cpu" ${d.kind==='cpu'?'selected':''}>CPU</option><option value="off" ${d.kind==='off'?'selected':''}>参加なし</option></select></div>
           <div class="full"><label>名前</label><input class="nameInput" maxlength="14" value="${escapeHTML(d.name)}"></div>
-          <div class="cpuOnly"><label>CPU難易度</label><select class="difficultyInput"><option value="easy" ${d.difficulty==='easy'?'selected':''}>EASY</option><option value="normal" ${d.difficulty==='normal'?'selected':''}>NORMAL</option><option value="hard" ${d.difficulty==='hard'?'selected':''}>HARD</option></select></div>
-          <div class="cpuOnly"><label>&nbsp;</label><div class="setupHint">難しいほど狙いと威力調整が正確</div></div>
-          <div><label>1. 本体</label><select class="bodyInput">${optionHTML('body',d)}</select></div>
-          <div><label>2. スリーブ</label><select class="sleeveInput">${optionHTML('sleeve',d)}</select></div>
-          <div><label>3. コア</label><select class="coreInput">${optionHTML('core',d)}</select></div>
-          <div><label>&nbsp;</label><button class="randomBtn">パーツをランダム</button></div>
+          <div class="cpuOnly"><label>CPU難易度</label><select class="difficultyInput"><option value="easy" ${d.difficulty==='easy'?'selected':''}>EASY</option><option value="normal" ${d.difficulty==='normal'?'selected':''}>NORMAL</option><option value="hard" ${d.difficulty==='hard'?'selected':''}>HARD</option><option value="ultra" ${d.difficulty==='ultra'?'selected':''}>ULTRA HARD</option></select></div>
+          <div class="cpuOnly"><label>&nbsp;</label><div class="setupHint">難しいほど判断・狙い・威力調整が正確。ULTRA HARDはクリティカル位置まで読み、最強セットとほぼ最善手で狙います。</div></div>
+          <div><label>1. 本体</label><select class="bodyInput" ${d.kind==='cpu'?'disabled':''}>${optionHTML('body',d)}</select></div>
+          <div><label>2. スリーブ</label><select class="sleeveInput" ${d.kind==='cpu'?'disabled':''}>${optionHTML('sleeve',d)}</select></div>
+          <div><label>3. コア</label><select class="coreInput" ${d.kind==='cpu'?'disabled':''}>${optionHTML('core',d)}</select></div>
+          <div><label>&nbsp;</label><button class="randomBtn">${d.kind==='cpu'?(d.difficulty==='ultra'?'ULTRA最強セットにする':'CPU高相性セットを変更'):'パーツをランダム'}</button></div>
         </div>
         <div class="partDetails">
           <div class="partInfo bodyInfo"></div>
@@ -471,26 +667,32 @@
     const type=card.querySelector('.typeInput'), name=card.querySelector('.nameInput'), diff=card.querySelector('.difficultyInput'), b=card.querySelector('.bodyInput'), s=card.querySelector('.sleeveInput'), c=card.querySelector('.coreInput');
     type.onchange=()=>{
       const old=setupData[i].kind;setupData[i].kind=type.value;
-      if(type.value==='cpu' && (setupData[i].name===DEFAULT_NAMES[i]||!setupData[i].name))setupData[i].name=`CPU ${i+1}`;
+      if(type.value==='cpu'){
+        if(setupData[i].name===DEFAULT_NAMES[i]||!setupData[i].name)setupData[i].name=`CPU ${i+1}`;
+        assignCpuAutoSet(setupData[i],true);
+      }
       if(type.value==='human' && (setupData[i].name===`CPU ${i+1}`||!setupData[i].name))setupData[i].name=DEFAULT_NAMES[i];
       if(old!==type.value)renderSetup();
     };
     name.oninput=()=>{setupData[i].name=name.value.trimStart();};
-    diff.onchange=()=>{setupData[i].difficulty=diff.value;updateConfigSummary(card,i);};
+    diff.onchange=()=>{setupData[i].difficulty=diff.value;if(diff.value==='ultra')assignUltraCpuSet(setupData[i]);renderSetup();};
     [b,s,c].forEach(el=>el.onchange=()=>{
       setupData[i].bi=+b.value;setupData[i].si=+s.value;setupData[i].ci=+c.value;updateConfigSummary(card,i);refreshCompatibilityUI(card,i);
     });
     card.querySelector('.randomBtn').onclick=()=>{
-      setupData[i].bi=Math.floor(Math.random()*parts.body.length);
-      setupData[i].si=Math.floor(Math.random()*parts.sleeve.length);
-      setupData[i].ci=Math.floor(Math.random()*parts.core.length);
-      updateConfigSummary(card,i);refreshCompatibilityUI(card,i);
+      if(setupData[i].kind==='cpu'){if(setupData[i].difficulty==='ultra')assignUltraCpuSet(setupData[i]);else assignCpuAutoSet(setupData[i],true);}
+      else{
+        setupData[i].bi=Math.floor(Math.random()*parts.body.length);
+        setupData[i].si=Math.floor(Math.random()*parts.sleeve.length);
+        setupData[i].ci=Math.floor(Math.random()*parts.core.length);
+      }
+      renderSetup();
     };
   }
 
   function updateConfigSummary(card,i){
     const cfg=setupData[i],e=buildEraser(i,cfg);
-    const role=cfg.kind==='cpu'?`CPU ${cfg.difficulty.toUpperCase()}`:cfg.kind==='human'?'PLAYER':'OFF';
+    const role=cfg.kind==='cpu'?`CPU ${cfg.difficulty.toUpperCase()} · AUTO HIGH-AFFINITY SET`:cfg.kind==='human'?'PLAYER':'OFF';
     const detail=(type,label,idx)=>{
       const part=parts[type][idx],guide=partGuide[type][idx];
       return `<div class="partInfoHead"><span class="partInfoType">${label}</span><span class="partInfoName">${escapeHTML(part.name)}</span></div><div class="partInfoDesc">${escapeHTML(guide.desc)}</div><div class="effectTags">${guide.tags.map(([t,k])=>`<span class="effectTag ${k}">${escapeHTML(t)}</span>`).join('')}</div>`;
@@ -508,8 +710,9 @@
       index,name:(cfg.name||DEFAULT_NAMES[index]).trim()||DEFAULT_NAMES[index],type:cfg.kind,difficulty:cfg.difficulty||'normal',bi:cfg.bi,si:cfg.si,ci:cfg.ci,
       x:0,y:0,angle:0,vx:0,vy:0,wv:0,width:b.w,height:b.h,mass,invMass:1/mass,inertia,invI:1/inertia,
       friction:s.friction*c.damp,restitution:s.restitution,grip:s.grip,shotPower:b.power*c.impulse,
-      control:b.control*c.damp,spin:b.spin*c.spin,bodyColor:b.color,sleeveColor:s.color,playerColor:PLAYER_COLORS[index],
-      falling:false,fallT:0,scale:1,alpha:1,support:1,alive:true,critical:null,criticalCooldown:0
+      control:b.control*c.damp,spin:b.spin*c.spin,bodyColor:b.color,sleeveColor:s.color,playerColor:PLAYER_COLORS[index],setBonus:getSetBonus(cfg),
+      falling:false,fallT:0,scale:1,alpha:1,support:1,alive:true,critical:null,criticalCooldown:0,
+      bonusShotActive:false,shotAge:0,firstHitReady:false,bonusCollisionUsed:false,edgeBrakeUsed:false,lastStandUsed:false,lastStandGrace:0,counterCooldown:0,fxCooldowns:{}
     };
   }
 
@@ -592,12 +795,12 @@
 
   function placePlayers(){
     const slots=spawnSlots(players.length);
-    players.forEach((p,i)=>Object.assign(p,{x:slots[i].x,y:slots[i].y,angle:slots[i].a,vx:0,vy:0,wv:0,falling:false,fallT:0,scale:1,alpha:1,support:1,alive:true,critical:randomCriticalPoint(p),criticalCooldown:0}));
+    players.forEach((p,i)=>Object.assign(p,{x:slots[i].x,y:slots[i].y,angle:slots[i].a,vx:0,vy:0,wv:0,falling:false,fallT:0,scale:1,alpha:1,support:1,alive:true,critical:randomCriticalPoint(p),criticalCooldown:0,bonusShotActive:false,shotAge:0,firstHitReady:false,bonusCollisionUsed:false,edgeBrakeUsed:false,lastStandUsed:false,lastStandGrace:0,counterCooldown:0,fxCooldowns:{}}));
   }
 
   function resetRound(){
     placePlayers();turnIndex=0;shotActive=false;settleTimer=0;roundEnded=false;roundEndTimer=0;dragging=false;cpuThinkTimer=0;
-    const p=players[0];setMessage(p.type==='cpu'?`${p.name} (CPU) が考え中…`:`${p.name} の番。後ろへドラッグしてショット！`);updateUI();
+    const p=players[0],bonus=p.setBonus?` · SET BONUS ${p.setBonus.name}`:'';setMessage(p.type==='cpu'?`${p.name} (CPU) が考え中…${bonus}`:`${p.name} の番。後ろへドラッグしてショット！${bonus}`);updateUI();
   }
 
   function newMatch(){scores=[0,0,0,0];round=1;resetRound();}
@@ -612,7 +815,8 @@
     const mass=p.mass>=1.25?'重いため衝突で押し負けにくい':p.mass<=1?'軽いため加速しやすいが正面衝突では不利':'質量は中程度';
     const grip=p.grip>=1.15?'高GRIPで滑走と衝突時の横滑りを抑えやすい':p.grip<=.8?'低GRIPで長く滑るが衝突時に流れやすい':'GRIPは標準的';
     const control=p.control>=1.2?'高CONTROLで狙いブレと入力ロスが小さい':p.control<=.95?'低CONTROLで偏心ショット時の狙いブレが大きい':'CONTROLは標準的';
-    return `<div class="physicsLine"><strong>物理:</strong> ${friction}。${bounce}。${spin}。${mass}。${grip}。${control}。</div><div class="assistHint">ドラッグ距離が発射速度、つかんだ位置の中心ズレが角速度に影響します。GRIPは滑走減衰と衝突摩擦、CONTROLは人間操作の方向精度と力の伝達効率に反映されます。</div>`;
+    const bonus=p.setBonus?`<div class="setBonusBox"><div class="setBonusHead"><span class="setBonusLabel">SET BONUS</span><span class="setBonusName">${escapeHTML(p.setBonus.name)}</span></div><div class="setBonusDesc">${escapeHTML(p.setBonus.desc)}</div></div>`:'';
+    return `<div class="physicsLine"><strong>物理:</strong> ${friction}。${bounce}。${spin}。${mass}。${grip}。${control}。</div><div class="assistHint">ドラッグ距離が発射速度、つかんだ位置の中心ズレが角速度に影響します。GRIPは滑走減衰と衝突摩擦、CONTROLは人間操作の方向精度と力の伝達効率に反映されます。</div>${bonus}`;
   }
 
   function getAiSuggestion(p){
@@ -654,7 +858,7 @@
     const p=currentPlayer(), role=p.type==='cpu'?`CPU ${p.difficulty.toUpperCase()}`:'PLAYER';turnBadge.textContent=`${p.name} · ${role} TURN`;turnBadge.style.color=p.playerColor;roundBadge.textContent=`ROUND ${round}`;
     scorePills.innerHTML=players.map(x=>`<span class="scorePill" style="border-color:${x.playerColor}55;color:${x.playerColor}">${escapeHTML(x.name)} · ${scores[x.index]}</span>`).join('');
     $('currentName').textContent=p.name;$('currentName').style.color=p.playerColor;
-    $('currentParts').innerHTML=`<span>タイプ <b>${p.type==='cpu'?`CPU / ${p.difficulty.toUpperCase()}`:'PLAYER'}</b></span><span>本体 <b>${parts.body[p.bi].name}</b></span><span>スリーブ <b>${parts.sleeve[p.si].name}</b></span><span>コア <b>${parts.core[p.ci].name}</b></span>`;
+    $('currentParts').innerHTML=`<span>タイプ <b>${p.type==='cpu'?`CPU / ${p.difficulty.toUpperCase()}`:'PLAYER'}</b></span><span>本体 <b>${parts.body[p.bi].name}</b></span><span>スリーブ <b>${parts.sleeve[p.si].name}</b></span><span>コア <b>${parts.core[p.ci].name}</b></span>${p.setBonus?`<span>セットボーナス <b style="color:#fbbf24">${escapeHTML(p.setBonus.name)}</b></span>`:''}`;
     updateStats(p);updateTurnOrder();updateAssistPanel();
   }
 
@@ -700,9 +904,63 @@
     e.wv+=cross(arm,imp)*e.invI*e.spin;
     e.criticalCooldown=CRITICAL_COOLDOWN;
     setMessage(`CRITICAL! ${e.name} が大きく弾かれた！`);
+    triggerCriticalFx(e,add({x:e.x,y:e.y},arm));
+  }
+
+  function localContact(e,contact){return rot({x:contact.x-e.x,y:contact.y-e.y},-e.angle);}
+  function contactOnLongSide(e,contact){
+    const q=localContact(e,contact),nx=Math.abs(q.x)/(e.width/2||1),ny=Math.abs(q.y)/(e.height/2||1);
+    return ny>=nx;
+  }
+  function blendCollisionDelta(e,before,factor){
+    e.vx=before.vx+(e.vx-before.vx)*factor;e.vy=before.vy+(e.vy-before.vy)*factor;e.wv=before.wv+(e.wv-before.wv)*factor;
+  }
+  function addTangentKick(target,n,j,sign=1,mult=.12){
+    const t={x:-n.y*sign,y:n.x*sign},imp=mul(t,j*mult);target.vx+=imp.x*target.invMass;target.vy+=imp.y*target.invMass;target.wv+=cross({x:0,y:0},imp)*target.invI;
+  }
+  function applyCollisionSetBonuses(a,b,m,j,beforeA,beforeB){
+    const shooter=a.bonusShotActive?a:b.bonusShotActive?b:null,target=shooter===a?b:shooter===b?a:null;
+    if(shooter&&target&&shooter.setBonus){
+      const id=shooter.setBonus.id,pre=shooter===a?beforeA:beforeB,n=shooter===a?m.normal:mul(m.normal,-1);
+      if(id==='vectorHold'&&!shooter.bonusCollisionUsed){
+        const speed=Math.hypot(shooter.vx,shooter.vy),sd=shooter.shotDir||norm({x:pre.vx,y:pre.vy});
+        const cur=norm({x:shooter.vx,y:shooter.vy}),kept=norm(add(mul(sd,.30),mul(cur,.70)));
+        shooter.vx=kept.x*speed;shooter.vy=kept.y*speed;shooter.bonusCollisionUsed=true;
+        triggerSetBonusFx(shooter,m.contact,'VECTOR HOLD',1.02);
+      }
+      if(id==='sweepHit'&&!shooter.bonusCollisionUsed){
+        const q=localContact(target,m.contact),off=clamp(Math.hypot(q.x/(target.width/2||1),q.y/(target.height/2||1)),0,1.4);
+        const side=Math.sign(cross(n,sub(m.contact,{x:target.x,y:target.y})))||1,t={x:-n.y*side,y:n.x*side},extra=j*(.08+.08*off),imp=mul(t,extra);
+        target.vx+=imp.x*target.invMass;target.vy+=imp.y*target.invMass;target.wv+=side*extra*target.invI*Math.max(target.width,target.height)*.35;shooter.bonusCollisionUsed=true;
+        triggerSetBonusFx(shooter,m.contact,'SWEEP HIT',1.08);
+      }
+      if(id==='orbit'){
+        const side=Math.sign(shooter.wv)||1,t={x:-n.y*side,y:n.x*side};shooter.vx+=t.x*j*.055*shooter.invMass;shooter.vy+=t.y*j*.055*shooter.invMass;
+        if(Math.abs(shooter.wv)<Math.abs(pre.wv)*.92)shooter.wv=pre.wv*.92;
+        if(canTriggerFx(shooter,'orbitFx',.16))triggerSetBonusFx(shooter,m.contact,'ORBIT',.92);
+      }
+      if(id==='chainDrive'&&!shooter.bonusCollisionUsed){blendCollisionDelta(shooter,pre,.65);shooter.bonusCollisionUsed=true;triggerSetBonusFx(shooter,m.contact,'CHAIN DRIVE',1.04);}
+      if(id==='kineticNeedle'&&shooter.firstHitReady){
+        const extra=mul(n,j*.18);target.vx+=extra.x*target.invMass;target.vy+=extra.y*target.invMass;const r=sub(m.contact,{x:target.x,y:target.y});target.wv+=cross(r,extra)*target.invI;shooter.firstHitReady=false;
+        triggerSetBonusFx(shooter,m.contact,'KINETIC NEEDLE',1.12);
+      }
+    }
+
+    for(const [e,other,before] of [[a,b,beforeA],[b,a,beforeB]]){
+      if(!e.setBonus)continue;const id=e.setBonus.id,preSpeed=Math.hypot(before.vx,before.vy);
+      if(id==='sideAnchor'&&contactOnLongSide(e,m.contact)){blendCollisionDelta(e,before,.80);if(canTriggerFx(e,'sideAnchorFx',.18))triggerSetBonusFx(e,m.contact,'SIDE ANCHOR',.90);}
+      if(id==='impactAbsorb'){blendCollisionDelta(e,before,.75);other.vx*=.91;other.vy*=.91;other.wv*=.94;if(canTriggerFx(e,'impactAbsorbFx',.18))triggerSetBonusFx(e,m.contact,'IMPACT ABSORB',1.00);}
+      if(id==='brace'&&preSpeed<7){blendCollisionDelta(e,before,.75);if(canTriggerFx(e,'braceFx',.20))triggerSetBonusFx(e,m.contact,'BRACE',.94);}
+      if(id==='fortress'&&preSpeed<5){blendCollisionDelta(e,before,.70);if(canTriggerFx(e,'fortressFx',.20))triggerSetBonusFx(e,m.contact,'FORTRESS',1.06);}
+      if(id==='counterWeight'&&preSpeed<7&&j>18&&e.counterCooldown<=0){
+        const away=norm(sub({x:other.x,y:other.y},{x:e.x,y:e.y})),ret=mul(away,j*.16);other.vx+=ret.x*other.invMass;other.vy+=ret.y*other.invMass;e.counterCooldown=.24;
+        triggerSetBonusFx(e,m.contact,'COUNTER WEIGHT',1.08);
+      }
+    }
   }
 
   function resolveCollision(a,b,m){
+    const beforeA={vx:a.vx,vy:a.vy,wv:a.wv},beforeB={vx:b.vx,vy:b.vy,wv:b.wv};
     const n=m.normal,ra=sub(m.contact,{x:a.x,y:a.y}),rb=sub(m.contact,{x:b.x,y:b.y});
     const va=add({x:a.vx,y:a.vy},crossSV(a.wv,ra)),vb=add({x:b.vx,y:b.vy},crossSV(b.wv,rb));
     let rv=sub(vb,va),velN=dot(rv,n);
@@ -726,6 +984,7 @@
       const mu=Math.sqrt((a.friction*a.grip*.12)*(b.friction*b.grip*.12));jt=clamp(jt,-j*mu,j*mu);const f=mul(t,jt);
       a.vx-=f.x*a.invMass;a.vy-=f.y*a.invMass;a.wv-=cross(ra,f)*a.invI;
       b.vx+=f.x*b.invMass;b.vy+=f.y*b.invMass;b.wv+=cross(rb,f)*b.invI;
+      applyCollisionSetBonuses(a,b,m,j,beforeA,beforeB);
     }
     const corr=Math.max(m.depth-.35,0)/(a.invMass+b.invMass)*.62;
     a.x-=n.x*corr*a.invMass;a.y-=n.y*corr*a.invMass;b.x+=n.x*corr*b.invMass;b.y+=n.y*corr*b.invMass;
@@ -738,12 +997,44 @@
 
   function stepBody(e,dt){
     e.criticalCooldown=Math.max(0,(e.criticalCooldown||0)-dt);
+    e.counterCooldown=Math.max(0,(e.counterCooldown||0)-dt);
+    e.lastStandGrace=Math.max(0,(e.lastStandGrace||0)-dt);
+    if(e.fxCooldowns)for(const k of Object.keys(e.fxCooldowns)){e.fxCooldowns[k]-=dt;if(e.fxCooldowns[k]<=0)delete e.fxCooldowns[k];}
+    if(e.bonusShotActive)e.shotAge=(e.shotAge||0)+dt;
     if(e.falling){e.fallT+=dt;e.scale=Math.max(.06,1-e.fallT*1.08);e.alpha=Math.max(0,1-e.fallT*.88);e.angle+=e.wv*dt*1.8;e.x+=e.vx*dt*.4;e.y+=e.vy*dt*.4;return;}
+
+    // 飛行軌道を変えるセットボーナス。角速度の符号を左右カーブとして利用する。
+    const id=e.setBonus?.id,speed0=Math.hypot(e.vx,e.vy);
+    if(e.bonusShotActive&&speed0>18&&Math.abs(e.wv)>.025){
+      let rate=0;
+      if(id==='hookShot')rate=.010*clamp(Math.abs(e.wv),0,8);
+      else if(id==='dashCurve')rate=.020*clamp(1-e.shotAge/.58,0,1)*clamp(Math.abs(e.wv),0,8);
+      else if(id==='sCurve'){const flip=e.shotAge<.38?1:-1;rate=flip*.013*clamp(1-e.shotAge/1.05,0,1)*clamp(Math.abs(e.wv),0,8);}
+      else if(id==='driftShot')rate=.014*clamp(speed0/420,.25,1.45)*clamp(Math.abs(e.wv),0,9);
+      if(rate){const sign=Math.sign(e.wv)||1,v=rot({x:e.vx,y:e.vy},rate*sign*dt*60);e.vx=v.x;e.vy=v.y;}
+    }
+
     e.x+=e.vx*dt;e.y+=e.vy*dt;e.angle+=e.wv*dt;
-    const speed=Math.hypot(e.vx,e.vy),gripFactor=.78+.22*clamp(e.grip,.55,1.4),drag=e.friction*gripFactor*(speed<80?1.32:.84),f=Math.exp(-drag*dt);
-    e.vx*=f;e.vy*=f;e.wv*=Math.exp(-(e.friction*(.55+.22*clamp(e.grip,.55,1.4))+.65)*dt);
+    const speed=Math.hypot(e.vx,e.vy),gripFactor=.78+.22*clamp(e.grip,.55,1.4);
+    let drag=e.friction*gripFactor*(speed<80?1.32:.84);
+    if(id==='pinpointBrake'&&speed<78){drag*=1.70;if(e.bonusShotActive&&canTriggerFx(e,'pinpointBrakeFx',.55))triggerSetBonusFx(e,{x:e.x,y:e.y},'PINPOINT BRAKE',.96);}
+    if(id==='softLanding'&&speed<95){drag*=1.55;if(e.bonusShotActive&&canTriggerFx(e,'softLandingFx',.55))triggerSetBonusFx(e,{x:e.x,y:e.y},'SOFT LANDING',.96);}
+    const f=Math.exp(-drag*dt);e.vx*=f;e.vy*=f;
+    let spinDrag=e.friction*(.55+.22*clamp(e.grip,.55,1.4))+.65;if(id==='softLanding'&&speed<95)spinDrag*=1.75;
+    e.wv*=Math.exp(-spinDrag*dt);
     if(speed<2.4){e.vx*=.7;e.vy*=.7;}if(Math.abs(e.wv)<.025)e.wv*=.6;
-    e.support=supportRatio(e);const moving=Math.hypot(e.vx,e.vy)>14||Math.abs(e.wv)>.5,threshold=moving?.34:.24;
+
+    e.support=supportRatio(e);
+    // 崖際救済系は落下判定より先に発動する。
+    if(id==='edgeBrake'&&!e.edgeBrakeUsed&&e.support<.56){
+      const edge=closestEdgeInfo(e),outV=dot({x:e.vx,y:e.vy},edge.out);
+      if(outV>5){e.vx-=edge.out.x*outV*.40;e.vy-=edge.out.y*outV*.40;e.edgeBrakeUsed=true;setMessage(`${e.setBonus.name}! ${e.name} が崖際でブレーキ！`);triggerSetBonusFx(e,{x:e.x,y:e.y},'EDGE BRAKE',1.08);}
+    }
+    if(id==='lastStand'&&!e.lastStandUsed&&e.support<.40){
+      const edge=closestEdgeInfo(e),outV=dot({x:e.vx,y:e.vy},edge.out);
+      if(outV>3){e.vx-=edge.out.x*outV*.72;e.vy-=edge.out.y*outV*.72;e.wv*=.62;e.lastStandUsed=true;e.lastStandGrace=.34;setMessage(`${e.setBonus.name}! ${e.name} が踏みとどまった！`);triggerSetBonusFx(e,{x:e.x,y:e.y},'LAST STAND',1.18);}
+    }
+    const moving=Math.hypot(e.vx,e.vy)>14||Math.abs(e.wv)>.5;let threshold=moving?.34:.24;if(e.lastStandGrace>0)threshold=.12;
     if(e.support<threshold){e.falling=true;e.alive=false;e.fallT=0;e.vx*=.78;e.vy*=.78;e.wv*=1.2;updateTurnOrder();}
   }
 
@@ -777,7 +1068,7 @@
     if(roundEnded)return;
     const start=turnIndex;do{turnIndex=(turnIndex+1)%players.length;if(players[turnIndex].alive)break;}while(turnIndex!==start);
     cpuThinkTimer=0;
-    const p=currentPlayer();setMessage(p.type==='cpu'?`${p.name} (CPU) が考え中…`:`${p.name} の番。ドラッグしてショット！`);updateUI();
+    const p=currentPlayer(),bonus=p.setBonus?` · SET BONUS ${p.setBonus.name}`:'';setMessage(p.type==='cpu'?`${p.name} (CPU) が考え中…${bonus}`:`${p.name} の番。ドラッグしてショット！${bonus}`);updateUI();
   }
 
   function edgeRoom(e){
@@ -786,41 +1077,139 @@
     return room;
   }
 
+  function closestEdgeInfo(e){
+    const c=corners(e),edges=[
+      {name:'left',room:Math.min(...c.map(q=>q.x-table.x)),out:{x:-1,y:0}},
+      {name:'right',room:Math.min(...c.map(q=>table.x+table.w-q.x)),out:{x:1,y:0}},
+      {name:'top',room:Math.min(...c.map(q=>q.y-table.y)),out:{x:0,y:-1}},
+      {name:'bottom',room:Math.min(...c.map(q=>table.y+table.h-q.y)),out:{x:0,y:1}}
+    ];
+    return edges.sort((a,b)=>a.room-b.room)[0];
+  }
+
+  function cpuShotPlans(p){
+    const opponents=players.filter(x=>x.alive&&x!==p),plans=[];
+    const selfDanger=clamp(1-edgeRoom(p)/105,0,1),isUltra=p.difficulty==='ultra';
+    const spinN=norm01(p.spin,.60,2.20),powerN=norm01(p.shotPower,.70,1.45),controlN=norm01(p.control,.75,1.60);
+    for(const target of opponents){
+      const delta={x:target.x-p.x,y:target.y-p.y},distance=Math.max(1,len(delta)),direct=mul(delta,1/distance),edge=closestEdgeInfo(target);
+      const edgeDanger=clamp(1-edge.room/145,0,1),outwardAlign=clamp((dot(direct,edge.out)+1)/2,0,1);
+      const sideOpportunity=1-Math.abs(dot(direct,edge.out)),distanceN=clamp(distance/620,0,1),near=1-distanceN;
+      const midRange=clamp(1-Math.abs(distanceN-.48)*2.1,0,1),repeatPenalty=mode=>p.lastCpuMode===mode?.13:0;
+      const bonusId=p.setBonus?.id,curveBonus=['hookShot','orbit','slingshot','dashCurve','sCurve','driftShot'].includes(bonusId)?.38:0,powerBonus=['overdrive','kineticNeedle','chainDrive'].includes(bonusId)?.30:0,softBonus=['pinpointBrake','softLanding','brace','fortress','lastStand','edgeBrake'].includes(bonusId)?.18:0;
+      const humanFocus=isUltra&&target.type==='human'?.22:0;
+      plans.push({target,mode:'power',edge,distance,aimOffset:0,
+        score:1.08*edgeDanger+.62*outwardAlign+.26*powerN+.20*distanceN+powerBonus-(isUltra?1.35:.55)*selfDanger-.22*(distance<125?1:0)-repeatPenalty('power')+humanFocus});
+      plans.push({target,mode:'soft',edge,distance,aimOffset:0,
+        score:.56*edgeDanger+.46*near+.42*controlN+.60*selfDanger+.14*(1-outwardAlign)+softBonus-repeatPenalty('soft')+(isUltra?humanFocus*.25:0)});
+      const crossToEdge=cross(direct,edge.out),spinSide=Math.abs(crossToEdge)>.05?(crossToEdge>0?1:-1):(Math.random()<.5?-1:1);
+      plans.push({target,mode:'spin',edge,distance,aimOffset:spinSide*Math.min(target.width,target.height)*(.16+.08*spinN),spinSide,
+        score:.70*edgeDanger+.50*sideOpportunity+.50*spinN+.25*midRange+curveBonus-(isUltra?.48:.12)*selfDanger-repeatPenalty('spin')+humanFocus});
+
+      if(isUltra&&target.critical){
+        // ULTRA HARDだけは、本来プレイヤーから見えないクリティカル位置も把握して狙う。
+        const critOffset=rot({x:target.critical.x,y:target.critical.y},target.angle);
+        const critWorld=add({x:target.x,y:target.y},critOffset);
+        const critDelta=sub(critWorld,{x:p.x,y:p.y}),critDistance=Math.max(1,len(critDelta)),critDir=mul(critDelta,1/critDistance);
+        const exposed=clamp((dot(norm(critOffset),mul(critDir,-1))+1)/2,0,1);
+        const pushAlign=clamp((dot(critDir,edge.out)+1)/2,0,1);
+        const ready=target.criticalCooldown<=0?1:0;
+        plans.push({target,mode:'critical',edge,distance:critDistance,aimPoint:critWorld,aimOffset:0,criticalExposure:exposed,
+          score:1.65+1.45*exposed+1.10*edgeDanger+.72*pushAlign+.42*powerN+.28*controlN+.36*ready-2.05*selfDanger+powerBonus+humanFocus});
+      }
+    }
+    if(isUltra&&selfDanger>.24){
+      const center={x:table.x+table.w/2,y:table.y+table.h/2},d=sub(center,{x:p.x,y:p.y}),distance=Math.max(1,len(d));
+      const fallback=opponents.slice().sort((a,b)=>len(sub(a,center))-len(sub(b,center)))[0]||opponents[0];
+      if(fallback)plans.push({target:fallback,mode:'escape',edge:closestEdgeInfo(p),distance,aimPoint:center,aimOffset:0,score:1.25+2.85*selfDanger+.35*controlN});
+    }
+    return plans;
+  }
+
+  function chooseCpuPlan(p,plans){
+    if(!plans.length)return null;
+    const ranked=[...plans].sort((a,b)=>b.score-a.score);
+    if(p.difficulty==='ultra')return ranked[0];
+    if(p.difficulty==='hard'){
+      const best=ranked[0].score,nearBest=ranked.filter(x=>x.score>=best-.08);
+      return nearBest[Math.floor(Math.random()*nearBest.length)];
+    }
+    if(p.difficulty==='normal'){
+      const pool=ranked.slice(0,Math.min(5,ranked.length));
+      const weights=pool.map((x,i)=>Math.max(.15,1-i*.17+x.score*.08)),total=weights.reduce((a,b)=>a+b,0);
+      let r=Math.random()*total;
+      for(let i=0;i<pool.length;i++){r-=weights[i];if(r<=0)return pool[i];}
+      return pool[0];
+    }
+    // EASYも3種類は使うが、判断ミスを残すため上位候補だけには絞らない。
+    const pool=ranked.slice(0,Math.min(9,ranked.length));
+    return pool[Math.floor(Math.random()*pool.length)];
+  }
+
   function handleCpuTurn(dt){
     if(roundEnded||shotActive||dragging||!players.length)return;
     const p=currentPlayer();if(!p.alive||p.type!=='cpu'){cpuThinkTimer=0;return;}
     cpuThinkTimer+=dt;
-    const delay=p.difficulty==='easy'?1.15:p.difficulty==='hard'?.48:.72;
+    const delay=p.difficulty==='easy'?1.15:p.difficulty==='ultra'?.20:p.difficulty==='hard'?.48:.72;
     if(cpuThinkTimer<delay)return;
     cpuThinkTimer=0;cpuShoot(p);
   }
 
   function cpuShoot(p){
-    const opponents=players.filter(x=>x.alive&&x!==p);if(!opponents.length)return;
-    let target;
-    if(p.difficulty==='easy')target=opponents[Math.floor(Math.random()*opponents.length)];
-    else if(p.difficulty==='hard')target=[...opponents].sort((a,b)=>edgeRoom(a)-edgeRoom(b))[0];
-    else target=[...opponents].sort((a,b)=>Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y))[0];
-
-    const dx=target.x-p.x,dy=target.y-p.y,distance=Math.hypot(dx,dy);
+    const plan=chooseCpuPlan(p,cpuShotPlans(p));if(!plan)return;
+    const target=plan.target,perpToTarget=norm({x:-(target.y-p.y),y:target.x-p.x});
+    const aim=plan.aimPoint||{x:target.x+perpToTarget.x*plan.aimOffset,y:target.y+perpToTarget.y*plan.aimOffset};
+    const dx=aim.x-p.x,dy=aim.y-p.y,distance=Math.hypot(dx,dy)||1;
     let angle=Math.atan2(dy,dx);
-    const spread=p.difficulty==='easy'?.30:p.difficulty==='hard'?.035:.12;
+    const spread=p.difficulty==='easy'?.24:p.difficulty==='ultra'?.0015:p.difficulty==='hard'?.026:.085;
     angle+=(Math.random()*2-1)*spread;
-    const dir={x:Math.cos(angle),y:Math.sin(angle)};
-    let base=clamp(distance*1.18+95,330,710);
-    if(p.difficulty==='easy')base*=.64+Math.random()*.28;
-    else if(p.difficulty==='normal')base*=.90+Math.random()*.14;
-    else base*=.98+Math.random()*.08;
-    const mag=base*p.shotPower;
+    const dir={x:Math.cos(angle),y:Math.sin(angle)},edgeDanger=clamp(1-plan.edge.room/145,0,1);
+
+    let base;
+    if(plan.mode==='critical')base=clamp(distance*1.40+205,520,850);
+    else if(plan.mode==='escape')base=clamp(distance*.58+95,210,390);
+    else if(plan.mode==='power')base=clamp(distance*1.30+155,435,795);
+    else if(plan.mode==='soft')base=clamp(distance*.69+105,220,475)*(1+edgeDanger*.08);
+    else base=clamp(distance*.98+125,305,650);
+
+    const powerNoise=p.difficulty==='easy'?.78+Math.random()*.28:p.difficulty==='normal'?.94+Math.random()*.11:p.difficulty==='ultra'?.998+Math.random()*.004:.985+Math.random()*.045;
+    let mag=base*powerNoise*p.shotPower;
+    if(p.setBonus?.id==='overdrive'&&(plan.mode==='power'||plan.mode==='critical'))mag*=p.difficulty==='ultra'?1.20:1.16;
+    if(p.setBonus?.id==='dualRange')mag*=(plan.mode==='power'||plan.mode==='critical')?1.10:plan.mode==='soft'?.94:1;
     const perp={x:-dir.y,y:dir.x};
-    const spinBias=p.difficulty==='hard'?(Math.random()*2-1)*p.height*.16:p.difficulty==='normal'?(Math.random()*2-1)*p.height*.10:0;
+    let spinBias=0;
+    if(plan.mode==='spin'){
+      const spinN=norm01(p.spin,.60,2.20),side=plan.spinSide||1;
+      spinBias=side*Math.min(p.width,p.height)*(.25+.14*spinN);
+      if(p.difficulty==='easy')spinBias*=.65+Math.random()*.55;
+      else if(p.difficulty==='normal')spinBias*=.90+Math.random()*.20;
+      else if(p.difficulty==='ultra')spinBias*=1.04;
+    }else if(plan.mode==='critical'&&p.difficulty==='ultra'){
+      // クリティカル狙いでは余計な回転を捨て、接触点の再現性を最大化。
+      spinBias=0;
+    }else{
+      const jitter=p.difficulty==='easy'?.08:p.difficulty==='normal'?.04:p.difficulty==='ultra'?.002:.018;
+      spinBias=(Math.random()*2-1)*Math.min(p.width,p.height)*jitter;
+    }
     const hit={x:p.x+perp.x*spinBias,y:p.y+perp.y*spinBias};
-    shoot(p,mul(dir,mag),hit);shotActive=true;settleTimer=0;setMessage(`${p.name} (CPU) SHOT!`);updateUI();
+    shoot(p,mul(dir,mag),hit);p.lastCpuMode=plan.mode;shotActive=true;settleTimer=0;
+    const shotName=plan.mode==='critical'?'クリティカル狙い':plan.mode==='escape'?'安全圏へ退避':plan.mode==='power'?'強打':plan.mode==='soft'?'弱打':'スピンショット';
+    setMessage(`${p.name} (${p.difficulty==='ultra'?'ULTRA HARD':'CPU'}) ${shotName}!`);updateUI();
   }
 
   function shoot(e,impulse,point){
-    if(e.falling)return;e.vx+=impulse.x*e.invMass;e.vy+=impulse.y*e.invMass;const r=sub(point,{x:e.x,y:e.y});e.wv+=cross(r,impulse)*e.invI*e.spin;
+    if(e.falling)return;
+    players.forEach(p=>p.bonusShotActive=false);
+    const r=sub(point,{x:e.x,y:e.y}),off=clamp(Math.hypot(r.x/(e.width/2||1),r.y/(e.height/2||1)),0,1.4);
+    if(e.setBonus?.id==='slingshot')impulse=mul(impulse,1+.12*clamp(off,0,1));
+    e.vx+=impulse.x*e.invMass;e.vy+=impulse.y*e.invMass;e.wv+=cross(r,impulse)*e.invI*e.spin;
+    e.bonusShotActive=true;e.shotAge=0;e.firstHitReady=e.setBonus?.id==='kineticNeedle';e.bonusCollisionUsed=false;e.shotDir=norm(impulse);e.fxCooldowns={};
+    const launchIds={overdrive:'OVERDRIVE',dualRange:'DUAL RANGE',hookShot:'HOOK SHOT',orbit:'ORBIT DRIVE',slingshot:'SLINGSHOT',snapShot:'SNAP SHOT',chainDrive:'CHAIN DRIVE',dashCurve:'DASH CURVE',sCurve:'S-CURVE',driftShot:'DRIFT SHOT',kineticNeedle:'KINETIC NEEDLE'};
+    const label=launchIds[e.setBonus?.id];
+    if(label)triggerSetBonusFx(e,{x:e.x,y:e.y},label,.96);
   }
+
+  function maxPullFor(p){return p?.setBonus?.id==='overdrive'?210:175;}
 
   function humanShotTuning(p){
     const controlN=norm01(p.control,.75,1.60),gripN=norm01(p.grip,.60,1.35);
@@ -828,10 +1217,14 @@
   }
 
   function humanShotParams(p,pull,d){
-    const rawDir=norm(pull),t=humanShotTuning(p);
+    const rawDir=norm(pull),t=humanShotTuning(p),bonusId=p.setBonus?.id;
     const lateral=clamp(cross(grabOffset,rawDir)/(Math.max(p.width,p.height)*.5),-1,1);
-    const skew=lateral*(1-t.controlN)*.14;
-    return {dir:rot(rawDir,skew),mag:(d/175)*720*p.shotPower*t.transfer,skew,...t};
+    let skew=lateral*(1-t.controlN)*.14,powerRatio=d/175;
+    if(bonusId==='snapShot')powerRatio=Math.min(1,powerRatio/0.80);
+    if(bonusId==='dualRange'&&powerRatio<=.55)skew*=.42;
+    let mag=powerRatio*720*p.shotPower*t.transfer;
+    if(bonusId==='dualRange'&&powerRatio>=.85)mag*=1.10;
+    return {dir:rot(rawDir,skew),mag,skew,powerRatio,...t};
   }
 
   function canvasPos(ev){const r=canvas.getBoundingClientRect();return{x:(ev.clientX-r.left)*(W/r.width),y:(ev.clientY-r.top)*(H/r.height)};}
@@ -844,19 +1237,21 @@
   canvas.addEventListener('pointermove',ev=>{if(!dragging)return;ev.preventDefault();dragNow=canvasPos(ev);updatePowerUI();});
   canvas.addEventListener('pointerup',ev=>{
     if(!dragging)return;ev.preventDefault();dragging=false;powerBox.classList.remove('active');dragNow=canvasPos(ev);
-    const p=currentPlayer(),pull=sub(dragStart,dragNow),d=Math.min(len(pull),175);
+    const p=currentPlayer(),pull=sub(dragStart,dragNow),d=Math.min(len(pull),maxPullFor(p));
     if(d>10&&p.alive){const shot=humanShotParams(p,pull,d),hit=add({x:p.x,y:p.y},grabOffset);shoot(p,mul(shot.dir,shot.mag),hit);shotActive=true;settleTimer=0;setMessage(`${p.name} SHOT!`);}
     updatePowerUI();
   });
   canvas.addEventListener('pointercancel',()=>{dragging=false;powerBox.classList.remove('active');updatePowerUI();});
   function updatePowerUI(){
-    const d=dragging?Math.min(len(sub(dragStart,dragNow)),175):0,q=Math.round(d/175*100);powerFill.style.width=q+'%';powerNum.textContent=q+'%';
+    const p=players.length?currentPlayer():null,maxPull=maxPullFor(p),d=dragging?Math.min(len(sub(dragStart,dragNow)),maxPull):0,q=Math.round(d/175*100),displayMax=p?.setBonus?.id==='overdrive'?120:100;
+    powerFill.style.width=Math.min(q/displayMax*100,100)+'%';powerNum.textContent=q+'%';
     if(dragging&&physicsGuideEnabled&&players.length){
-      const p=currentPlayer(),pull=sub(dragStart,dragNow),dir=norm(pull),grab=Math.hypot(grabOffset.x,grabOffset.y),spinSide=cross(grabOffset,dir),shot=humanShotParams(p,pull,d);
+      const pull=sub(dragStart,dragNow),dir=norm(pull),grab=Math.hypot(grabOffset.x,grabOffset.y),spinSide=cross(grabOffset,dir),shot=humanShotParams(p,pull,d);
       const spinText=grab<4?'ほぼ無回転':Math.abs(spinSide)<2?'弱い回転':spinSide>0?'反時計回りスピン':'時計回りスピン';
       const predicted=shot.mag/p.mass,skewDeg=Math.abs(shot.skew)*180/Math.PI;
       const gripText=p.grip>=1.15?'高GRIP・止まりやすい':p.grip<=.8?'低GRIP・滑りやすい':'標準GRIP';
-      assistText.innerHTML=`<div class="physicsLine"><strong>発射プレビュー:</strong> POWER <strong>${q}%</strong> / 初速目安 <strong>${predicted.toFixed(0)}</strong> / ${spinText}</div><div class="assistHint">CONTROL補正: 方向ブレ約 ${skewDeg.toFixed(1)}° / 入力伝達 ${(shot.transfer*100).toFixed(0)}% ・ ${gripText}。中心から離れた位置をつかむほど回転モーメントが大きくなります。</div>`;
+      const bonusText=p.setBonus?` / SET <strong>${escapeHTML(p.setBonus.name)}</strong>`:'';
+      assistText.innerHTML=`<div class="physicsLine"><strong>発射プレビュー:</strong> POWER <strong>${q}%</strong> / 初速目安 <strong>${predicted.toFixed(0)}</strong> / ${spinText}${bonusText}</div><div class="assistHint">CONTROL補正: 方向ブレ約 ${skewDeg.toFixed(1)}° / 入力伝達 ${(shot.transfer*100).toFixed(0)}% ・ ${gripText}。中心から離れた位置をつかむほど回転モーメントが大きくなります。</div>`;
     }else if(!dragging){updateAssistPanel();}
   }
   addEventListener('keydown',e=>{if(gameStarted&&e.key.toLowerCase()==='r')resetRound();});
@@ -895,17 +1290,25 @@
   }
 
   function drawAim(){
-    if(!dragging)return;const p=currentPlayer(),pull=sub(dragStart,dragNow),d=Math.min(len(pull),175),dir=norm(pull),start={x:p.x,y:p.y},end=add(start,mul(dir,80+d*1.1));
+    if(!dragging)return;const p=currentPlayer(),pull=sub(dragStart,dragNow),d=Math.min(len(pull),maxPullFor(p)),dir=norm(pull),start={x:p.x,y:p.y},end=add(start,mul(dir,80+d*1.1));
     ctx.save();ctx.setLineDash([10,8]);ctx.lineWidth=3;ctx.strokeStyle=p.playerColor;ctx.beginPath();ctx.moveTo(start.x,start.y);ctx.lineTo(end.x,end.y);ctx.stroke();ctx.setLineDash([]);
     ctx.fillStyle=p.playerColor;ctx.beginPath();const ang=Math.atan2(dir.y,dir.x);ctx.moveTo(end.x,end.y);ctx.lineTo(end.x-14*Math.cos(ang-.45),end.y-14*Math.sin(ang-.45));ctx.lineTo(end.x-14*Math.cos(ang+.45),end.y-14*Math.sin(ang+.45));ctx.closePath();ctx.fill();
     ctx.strokeStyle='#fb718588';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(dragStart.x,dragStart.y);ctx.lineTo(dragNow.x,dragNow.y);ctx.stroke();ctx.restore();
   }
 
   function drawSupport(e){if(e.falling||e.support>.55)return;ctx.save();ctx.globalAlpha=(.58-e.support)*1.6;ctx.strokeStyle='#fb7185';ctx.lineWidth=3;ctx.beginPath();ctx.arc(e.x,e.y,Math.max(e.width,e.height)*.72,0,TAU);ctx.stroke();ctx.restore();}
-  function render(){ctx.clearRect(0,0,W,H);drawTable();players.forEach(drawEraser);players.forEach(drawSupport);drawAiAssist();drawAim();}
+  function render(){
+    ctx.clearRect(0,0,W,H);
+    const shake=screenShake.time>0&&screenShake.duration>0?screenShake.amp*(screenShake.time/screenShake.duration):0;
+    const sx=shake?(Math.random()*2-1)*shake:0,sy=shake?(Math.random()*2-1)*shake:0;
+    ctx.save();ctx.translate(sx,sy);
+    drawTable();players.forEach(drawEraser);players.forEach(drawSupport);drawAiAssist();drawAim();drawSpecialFx();
+    ctx.restore();
+    drawFxOverlay();
+  }
 
   function loop(now){
-    const frame=Math.min((now-last)/1000,.033);last=now;if(gameStarted){acc+=frame;const dt=1/120;let guard=0;while(acc>=dt&&guard++<6){physicsStep(dt);acc-=dt;}render();}requestAnimationFrame(loop);
+    const frame=Math.min((now-last)/1000,.033);last=now;updateSpecialFx(frame);if(gameStarted){acc+=frame;const dt=1/120;let guard=0;while(acc>=dt&&guard++<6){physicsStep(dt);acc-=dt;}render();}requestAnimationFrame(loop);
   }
 
   physicsGuideBtn.onclick=()=>{physicsGuideEnabled=!physicsGuideEnabled;updateAssistPanel();};
